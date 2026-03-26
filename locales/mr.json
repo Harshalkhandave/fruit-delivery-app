@@ -35,5 +35,17 @@
   "address_line_1_required": "पत्ता ओळ 1 आवश्यक आहे",
   "address_line_1_min_5": "किमान 2 अक्षरे आवश्यक",
   "address_line_2_required": "पत्ता ओळ 2 आवश्यक आहे",
-  "address_line_2_min_5": "किमान 5 अक्षरे आवश्यक"
+  "address_line_2_min_5": "किमान 5 अक्षरे आवश्यक",
+  "select_exact_location": "अचूक स्थान निवडा",
+  "drag_to_pin": "स्थान निवडण्यासाठी नकाशा हलवा",
+  "confirm_location": "स्थान निश्चित करा",
+  "outside_area": "सेवा क्षेत्राबाहेर",
+  "location_pinned": "स्थान यशस्वीरित्या निश्चित केले",
+  "use_current_location": "सध्याचे स्थान वापरा",
+  "delivery_available": "✅ वितरण उपलब्ध",
+  "delivery_unavailable": "❌ आम्ही येथे वितरण करत नाही",
+  "edit_profile": "प्रोफाईल बदला",
+  "language": "भाषा बदला",
+  "manage_address": "पत्ता व्यवस्थापित करा",
+  "logout": "बाहेर पडा"
 }

@@ -35,5 +35,17 @@
   "address_line_1_required": "Address line 1 is required",
   "address_line_1_min_5": "Minimum 2 characters required",
   "address_line_2_required": "Address line 2 is required",
-  "address_line_2_min_5": "Minimum 5 characters required"
+  "address_line_2_min_5": "Minimum 5 characters required",
+  "select_exact_location": "Select Exact Location",
+  "drag_to_pin":"Drag to Pin",
+  "confirm_location":"Confirm Location",
+  "outside_area": "Outside Area",
+  "location_pinned": "Location Pinned Successfully",
+  "use_current_location": "Use Current Location",
+  "delivery_available": "✅ Delivery available",
+  "delivery_unavailable": "❌ We don’t deliver here yet",
+  "edit_profile": "Edit Profile",
+  "language": "Change Language",
+  "manage_address": "Manage Address",
+  "logout": "Logout"
 }

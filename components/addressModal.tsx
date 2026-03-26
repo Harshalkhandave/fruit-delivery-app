@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, View } from 'react-native';
+import { Keyboard, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { Button, Modal, Portal, Text, TextInput } from 'react-native-paper';
 import { addressStyles } from '../style/addressStyle';
@@ -98,7 +98,7 @@ export default function AddressModal({
   const isFormValid = () => {
     const validation = validate();
     // 🟢 Form is valid ONLY if fields are correct AND a location is pinned
-    return Object.values(validation).every(err => err === '') && selectedCoords !== null;
+    return Object.values(validation).every(err => err === '');
   };
 
   useEffect(() => {
@@ -141,10 +141,6 @@ export default function AddressModal({
     setTouched({ fName: true, lName: true, phone: true, line1: true, line2: true });
 
     if (!Object.values(validation).every(e => e === '')) return;
-    if (!selectedCoords) {
-        Alert.alert(t('error'), t('please_pin_location'));
-        return;
-    }
 
     onSave({
       receiverName: `${fName.trim()} ${lName.trim()}`,
@@ -154,7 +150,7 @@ export default function AddressModal({
       nearby: nearby.trim(),
       city: 'Ahilyanagar',
       state: 'Maharashtra',
-      coords: selectedCoords // 🟢 Send GPS data to Firestore
+      ...(selectedCoords ? { coords: selectedCoords } : {}),// 🟢 Send GPS data to Firestore
     });
 
     onDismiss();
@@ -176,7 +172,10 @@ export default function AddressModal({
           <Button 
             icon={selectedCoords ? "check-circle" : "map-marker-radius"} 
             mode="outlined" 
-            onPress={() => setShowMap(true)}
+            onPress={() => {
+              Keyboard.dismiss();
+              setShowMap(true)}
+            }
             style={{ marginBottom: 15 }}
           >
             {selectedCoords ? t('location_pinned') : t('select_exact_location')}
@@ -191,28 +190,6 @@ export default function AddressModal({
               setShowMap(false);
             }}
           />
-          {/* 🟢 MAP TOGGLE BUTTON
-          <Button 
-            icon={selectedCoords ? "check-circle" : "map-marker-radius"} 
-            mode={selectedCoords ? "contained-tonal" : "outlined"} 
-            onPress={() => setShowMap(!showMap)}
-            style={{ marginBottom: 15 }}
-          >
-            {selectedCoords ? t('location_pinned') : t('select_exact_location')}
-          </Button> */}
-
-          {/* 🟢 CONDITIONAL MAP VIEW
-          {showMap && (
-            <View style={{ marginBottom: 20 }}>
-              <NeptiMapPicker 
-                onCancel={() => setShowMap(false)}
-                onLocationSelected={(coords: any) => {
-                  setSelectedCoords(coords);
-                  setShowMap(false);
-                }}
-              />
-            </View>
-          )} */}
 
           {/* First + Last */}
           <View style={{ flexDirection: 'row', gap: 10 }}>

@@ -1,13 +1,13 @@
 import * as Location from 'expo-location';
 import { isPointInPolygon } from 'geolib';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import MapView, { Polygon, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Button, IconButton, Modal, Portal, Text } from 'react-native-paper';
 import { NEPTI_BOUNDARY } from '../constants/deliveryZone';
+import { addressStyles } from '../style/addressStyle';
 
-// 📍 Your requested default coordinates
 const DEFAULT_LOC = {
   latitude: 19.0961,
   longitude: 74.7196,
@@ -17,85 +17,192 @@ const DEFAULT_LOC = {
 
 export default function NeptiMapPicker({ visible, onLocationSelected, onCancel }: any) {
   const { t } = useTranslation();
+
   const [region, setRegion] = useState(DEFAULT_LOC);
   const [isInside, setIsInside] = useState(true);
+  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationPermissionStatus, setLocationPermissionStatus] = useState<'granted' | 'denied' | 'undetermined'>('undetermined');
 
-  // 1. Initial Permission & Location Check
+  const bounds = useMemo(() => {
+    let minLat = NEPTI_BOUNDARY[0].latitude;
+    let maxLat = NEPTI_BOUNDARY[0].latitude;
+    let minLng = NEPTI_BOUNDARY[0].longitude;
+    let maxLng = NEPTI_BOUNDARY[0].longitude;
+
+    NEPTI_BOUNDARY.forEach(p => {
+      minLat = Math.min(minLat, p.latitude);
+      maxLat = Math.max(maxLat, p.latitude);
+      minLng = Math.min(minLng, p.longitude);
+      maxLng = Math.max(maxLng, p.longitude);
+    });
+
+    return { minLat, maxLat, minLng, maxLng };
+  }, []);
+
+  const getBoundaryRegion = () => ({
+    latitude: (bounds.minLat + bounds.maxLat) / 2,
+    longitude: (bounds.minLng + bounds.maxLng) / 2,
+    latitudeDelta: (bounds.maxLat - bounds.minLat) * 1.5,
+    longitudeDelta: (bounds.maxLng - bounds.minLng) * 1.5,
+  });
+
+  const getClampedRegion = (newRegion: any) => {
+    const LAT_MARGIN = 0.002;
+    const LNG_MARGIN = 0.002;
+
+    return {
+      ...newRegion,
+      latitude: Math.min(
+        Math.max(newRegion.latitude, bounds.minLat - LAT_MARGIN),
+        bounds.maxLat + LAT_MARGIN
+      ),
+      longitude: Math.min(
+        Math.max(newRegion.longitude, bounds.minLng - LNG_MARGIN),
+        bounds.maxLng + LNG_MARGIN
+      ),
+    };
+  };
+
   useEffect(() => {
     if (visible) {
+      setRegion(DEFAULT_LOC);
+
       (async () => {
-        let { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === 'granted') {
+        try {
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          setLocationPermissionStatus(status === 'granted' ? 'granted' : 'denied');
+
+          if (status !== 'granted') return;
+
           const loc = await Location.getCurrentPositionAsync({});
           const userCoords = {
             latitude: loc.coords.latitude,
             longitude: loc.coords.longitude,
           };
 
-          // Only snap to user if they are inside Nepti, else stay at DEFAULT_LOC
+          setUserLocation(userCoords);
+
           if (isPointInPolygon(userCoords, NEPTI_BOUNDARY)) {
-            setRegion({ ...DEFAULT_LOC, ...userCoords });
+            setRegion({ ...userCoords, latitudeDelta: 0.005, longitudeDelta: 0.005 });
+            setIsInside(true);
+          } else {
+            setRegion(getBoundaryRegion());
+            setIsInside(false);
           }
+        } catch (e) {
+          console.log('Location error ignored:', e);
         }
       })();
     }
   }, [visible]);
 
-  // 2. Handle map movement
   const handleRegionChange = (newRegion: any) => {
-    setRegion(newRegion);
-    // Real-time check if the center of the map is inside our service boundary
-    setIsInside(isPointInPolygon({ 
-      latitude: newRegion.latitude, 
-      longitude: newRegion.longitude 
-    }, NEPTI_BOUNDARY));
+    const clamped = getClampedRegion(newRegion);
+    setRegion(clamped);
+
+    const inside = isPointInPolygon(
+      { latitude: clamped.latitude, longitude: clamped.longitude },
+      NEPTI_BOUNDARY
+    );
+    setIsInside(inside);
+  };
+
+  const handleUseCurrentLocation = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      setLocationPermissionStatus(status === 'granted' ? 'granted' : 'denied');
+
+      if (status !== 'granted') return;
+
+      const loc = await Location.getCurrentPositionAsync({});
+      const userCoords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+      setUserLocation(userCoords);
+
+      setRegion({ ...userCoords, latitudeDelta: 0.005, longitudeDelta: 0.005 });
+      setIsInside(isPointInPolygon(userCoords, NEPTI_BOUNDARY));
+    } catch (e) {
+      console.log('Error fetching location', e);
+    }
+  };
+
+  const isUseCurrentLocationDisabled = () => {
+    if (!userLocation) return false; // Initially enabled
+    if (!isPointInPolygon(userLocation, NEPTI_BOUNDARY)) return true; // outside serviceable
+    if (region.latitude === userLocation.latitude && region.longitude === userLocation.longitude && isInside)
+      return true; // pin at user location inside
+    return false;
   };
 
   return (
     <Portal>
-      <Modal visible={visible} onDismiss={onCancel} contentContainerStyle={styles.fullScreen}>
+      <Modal visible={visible} onDismiss={onCancel} contentContainerStyle={addressStyles.fullScreen}>
         <View style={{ flex: 1 }}>
           <MapView
             provider={PROVIDER_GOOGLE}
-            style={styles.map}
+            style={addressStyles.map}
             mapType="hybrid"
-            initialRegion={region}
+            region={region}
             onRegionChangeComplete={handleRegionChange}
+            minZoomLevel={14}
+            maxZoomLevel={20}
           >
+            {!isInside && (
+              <Polygon
+                coordinates={[
+                  { latitude: bounds.minLat - 1, longitude: bounds.minLng - 1 },
+                  { latitude: bounds.minLat - 1, longitude: bounds.maxLng + 1 },
+                  { latitude: bounds.maxLat + 1, longitude: bounds.maxLng + 1 },
+                  { latitude: bounds.maxLat + 1, longitude: bounds.minLng - 1 },
+                ]}
+                holes={[NEPTI_BOUNDARY]}
+                fillColor="rgba(255,0,0,0.2)"
+              />
+            )}
             <Polygon
               coordinates={NEPTI_BOUNDARY}
-              fillColor="rgba(46, 125, 50, 0.2)"
+              fillColor="rgba(46, 125, 50, 0.3)"
               strokeColor="#2e7d32"
               strokeWidth={2}
             />
           </MapView>
 
-          {/* 🎯 FIXED CENTER PIN ICON */}
-          <View style={styles.markerFixed} pointerEvents="none">
-             <IconButton icon="map-marker" size={40} iconColor={isInside ? "#2e7d32" : "red"} />
+          <View style={addressStyles.markerFixed} pointerEvents="none">
+            <IconButton icon="map-marker" size={40} iconColor={isInside ? '#2e7d32' : 'red'} />
           </View>
 
-          {/* TOP BAR / BACK BUTTON */}
-          <View style={styles.topBar}>
+          <View style={addressStyles.topBar}>
             <IconButton icon="close" containerColor="white" onPress={onCancel} />
-            <Text variant="titleMedium" style={styles.statusText}>
+            <Text variant="titleMedium" style={addressStyles.statusText}>
               {isInside ? t('drag_to_pin') : t('outside_area')}
             </Text>
           </View>
 
-          {/* BOTTOM ACTIONS */}
-          <View style={styles.footer}>
-            <Text style={styles.coordsText}>
-                {region.latitude.toFixed(4)}, {region.longitude.toFixed(4)}
+          <View style={addressStyles.footer}>
+            <Text style={{ textAlign: 'center', marginBottom: 10 }}>
+              {isInside
+                ? t('delivery_available')
+                : t('delivery_unavailable')}
             </Text>
-            <Button 
-              mode="contained" 
+
+            <Button
+              mode="outlined"
+              style={{ marginBottom: 10 }}
+              disabled={isUseCurrentLocationDisabled()}
+              onPress={handleUseCurrentLocation}
+            >
+              {t('use_current_location')}
+            </Button>
+
+            <Button
+              mode="contained"
               disabled={!isInside}
               style={{ backgroundColor: isInside ? '#2e7d32' : '#ccc' }}
-              onPress={() => onLocationSelected({ 
-                latitude: region.latitude, 
-                longitude: region.longitude 
-              })}
+              onPress={() =>
+                onLocationSelected({
+                  latitude: region.latitude,
+                  longitude: region.longitude,
+                })
+              }
             >
               {t('confirm_location')}
             </Button>
@@ -105,42 +212,3 @@ export default function NeptiMapPicker({ visible, onLocationSelected, onCancel }
     </Portal>
   );
 }
-
-const styles = StyleSheet.create({
-  fullScreen: { flex: 1, backgroundColor: 'white', margin: 0 },
-  map: { flex: 1 },
-  markerFixed: {
-    left: '50%',
-    marginLeft: -24, // Half of icon width
-    marginTop: -48, // Offset to align point of marker to center
-    position: 'absolute',
-    top: '50%',
-  },
-  topBar: {
-    position: 'absolute',
-    top: 50,
-    left: 20,
-    right: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  statusText: {
-    backgroundColor: 'white',
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginLeft: 10,
-    elevation: 4,
-  },
-  footer: {
-    position: 'absolute',
-    bottom: 40,
-    left: 20,
-    right: 20,
-    backgroundColor: 'white',
-    padding: 20,
-    borderRadius: 15,
-    elevation: 10,
-  },
-  coordsText: { textAlign: 'center', color: '#666', marginBottom: 10, fontSize: 12 },
-});

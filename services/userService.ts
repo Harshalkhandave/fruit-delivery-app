@@ -1,7 +1,7 @@
-import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
-// 1. Define the Address Structure
+// 1. Address Structure
 export interface AddressData {
   receiverName: string;
   receiverPhone: string;
@@ -12,20 +12,19 @@ export interface AddressData {
   state: string;
 }
 
-// 2. Define the Profile Data Interface (Single Definition)
+// 2. Profile Data Interface ✅ FIXED
 export interface UpdateProfileData {
   firstName?: string;
   lastName?: string;
   email?: string;
+  phoneNumber?: string; // ✅ ADDED (IMPORTANT FIX)
   isProfileComplete?: boolean;
-  savedAddress?: AddressData; // 🟢 Now recognized by TypeScript
+  savedAddress?: AddressData;
   updatedAt?: any;
 }
 
 /**
- * Updates the user profile in Firestore
- * @param uid - The unique Firebase User ID
- * @param data - The profile fields to update
+ * Update user profile
  */
 export const updateUserProfile = async (
   uid: string,
@@ -36,8 +35,6 @@ export const updateUserProfile = async (
   const userRef = doc(db, 'users', uid);
 
   try {
-    // We use serverTimestamp() instead of new Date() 
-    // to ensure the time is consistent across all users in India
     await updateDoc(userRef, {
       ...data,
       updatedAt: serverTimestamp(),
@@ -46,4 +43,26 @@ export const updateUserProfile = async (
     console.error('Error updating user profile:', error);
     throw error;
   }
+};
+
+/**
+ * Check if email/phone already exists (excluding current user)
+ */
+export const checkIfUserExists = async (
+  field: 'email' | 'phoneNumber',
+  value: string,
+  currentUid: string
+) => {
+  const q = query(collection(db, 'users'), where(field, '==', value));
+  const snapshot = await getDocs(q);
+
+  let exists = false;
+
+  snapshot.forEach(docSnap => {
+    if (docSnap.id !== currentUid) {
+      exists = true;
+    }
+  });
+
+  return exists;
 };

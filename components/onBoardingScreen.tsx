@@ -1,151 +1,67 @@
-import React, { useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import React, { useState } from 'react';
 import { Alert, Keyboard, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
-import { Button, Surface, Text, TextInput } from 'react-native-paper';
+import { Button, Surface, Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import AddressModal from '../components/addressModal';
+import InputField from '../components/InputField';
 import LoadingOverlay from '../components/loadingOverlay';
+import { Field, useProfileForm } from '../services/useProfileForm';
 import { updateUserProfile } from '../services/userService';
 import { globalStyles } from '../style/globalStyle';
 import { onboardingStyles } from '../style/onboardingStyle';
 
-interface OnboardingProps {
+interface Props {
   user: any;
   onComplete: () => void;
 }
 
-type Field = 'firstName' | 'lastName' | 'email';
-
-type ErrorsType = Record<Field, string>;
-type TouchedType = Record<Field, boolean>;
-
-export default function OnboardingScreen({ user, onComplete }: OnboardingProps) {
-  const { t } = useTranslation();
-
-  // ===== STATE =====
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [email, setEmail] = useState('');
+export default function OnboardingScreen({ user, onComplete }: Props) {
+  const [loading, setLoading] = useState(false);
   const [addressModalVisible, setAddressModalVisible] = useState(false);
   const [savedAddress, setSavedAddress] = useState<any>(null);
 
-  const [errors, setErrors] = useState<ErrorsType>({
-    firstName: '',
-    lastName: '',
-    email: '',
-  });
-
-  const [touched, setTouched] = useState<TouchedType>({
-    firstName: false,
-    lastName: false,
-    email: false,
-  });
-
-  const [loading, setLoading] = useState(false);
-
-  // ===== REFS =====
-  const lastNameRef = useRef<any>(null);
-  const emailRef = useRef<any>(null);
-
-  // ===== VALIDATION =====
-  const validateName = (name: string) => {
-    const trimmed = name.trim();
-  
-    if (!trimmed) return t('name_required');
-  
-    // ✅ supports English + Marathi (Devanagari)
-    const regex = /^[A-Za-z\u0900-\u097F\s]+$/;
-  
-    if (!regex.test(trimmed)) return t('only_letters');
-  
-    if (trimmed.length < 2) return t('min_2_characters');
-  
-    return '';
-  };
-
-  const validateEmail = (value: string) => {
+  // ===== VALIDATION FUNCTION =====
+  const validate = (field: Field, value: string) => {
     const trimmed = value.trim();
-    if (!trimmed) return '';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return t('invalid_email');
+    const t = (key: string) => key; // replace with your translation function
+
+    if ((field === 'firstName' || field === 'lastName')) {
+      if (!trimmed) return t('name_required');
+      if (!/^[A-Za-z\u0900-\u097F\s]+$/.test(trimmed)) return t('only_letters');
+      if (trimmed.length < 2) return t('min_2_characters');
+    }
+    if (field === 'email') {
+      if (trimmed && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return t('invalid_email');
+    }
     return '';
   };
 
-  const validateField = (field: Field, value: string) => {
-    if (field === 'email') return validateEmail(value);
-    return validateName(value);
-  };
-
-  const isFormValid = () => {
-    return (
-      !validateName(firstName) &&
-      !validateName(lastName) &&
-      !validateEmail(email)
-    );
-  };
-
-  // ===== HANDLERS =====
-  const handleChange = (field: Field, value: string) => {
-    if (field === 'firstName') setFirstName(value);
-    if (field === 'lastName') setLastName(value);
-    if (field === 'email') setEmail(value);
-
-    // Clear error while typing
-    setErrors(prev => ({ ...prev, [field]: '' }));
-  };
-
-  const handleBlur = (field: Field) => {
-    const value =
-      field === 'firstName' ? firstName :
-      field === 'lastName' ? lastName :
-      email;
-
-    const error = validateField(field, value);
-
-    setErrors(prev => ({ ...prev, [field]: error }));
-    setTouched(prev => ({ ...prev, [field]: true }));
-  };
+  const { values, errors, touched, handleChange, handleBlur, isFormValid } = useProfileForm({
+    initialValues: { firstName: '', lastName: '', email: '' },
+    validate,
+  });
 
   const handleSaveProfile = async () => {
     if (loading) return;
 
     Keyboard.dismiss();
+    // mark all touched
+    Object.keys(values).forEach(f => handleBlur(f as Field));
 
-    const newErrors: ErrorsType = {
-      firstName: validateName(firstName),
-      lastName: validateName(lastName),
-      email: validateEmail(email),
-    };
-
-    setErrors(newErrors);
-    setTouched({
-      firstName: true,
-      lastName: true,
-      email: true,
-    });
-
-    if (Object.values(newErrors).some(e => e !== '')) return;
-
-    if (!savedAddress) {
-      Alert.alert(t('address_required_title'), t('address_required_msg'));
-      return;
-    }
+    if (!isFormValid()) return;
 
     try {
       setLoading(true);
-
       await updateUserProfile(user.uid, {
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        email: email.trim(),
-        savedAddress,
+        ...values,
+        savedAddress: savedAddress || null,
         isProfileComplete: true,
       });
-
       onComplete();
     } catch {
-      Alert.alert(t('error'), t('something_went_wrong'));
+      Alert.alert('Error', 'Something went wrong');
     } finally {
       setLoading(false);
     }
@@ -153,71 +69,37 @@ export default function OnboardingScreen({ user, onComplete }: OnboardingProps) 
 
   return (
     <SafeAreaView style={{ flex: 1 }}>
-      <KeyboardAwareScrollView
-        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 20 }}
-        enableOnAndroid
-        extraScrollHeight={40}
-        keyboardShouldPersistTaps="handled"
-      >
+      <KeyboardAwareScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 20 }} keyboardShouldPersistTaps="handled">
         <Surface style={globalStyles.card} elevation={3}>
-          <Text variant="headlineMedium" style={globalStyles.title}>
-            {t('complete_profile')}
-          </Text>
+          <Text variant="headlineMedium" style={globalStyles.title}>Complete Profile</Text>
 
-          {/* First Name */}
-          <TextInput
-            label={`${t('first_name')} *`}
-            value={firstName}
-            onChangeText={t => handleChange('firstName', t)}
+          <InputField
+            label="First Name *"
+            value={values.firstName}
+            error={errors.firstName}
+            touched={touched.firstName}
+            onChange={text => handleChange('firstName', text)}
             onBlur={() => handleBlur('firstName')}
-            mode="outlined"
-            style={globalStyles.input}
-            error={touched.firstName && !!errors.firstName}
           />
-          {touched.firstName && !!errors.firstName && (
-            <Text style={{ color: 'red' }}>{errors.firstName}</Text>
-          )}
 
-          {/* Last Name */}
-          <TextInput
-            ref={lastNameRef}
-            label={`${t('last_name')} *`}
-            value={lastName}
-            onChangeText={t => handleChange('lastName', t)}
+          <InputField
+            label="Last Name *"
+            value={values.lastName}
+            error={errors.lastName}
+            touched={touched.lastName}
+            onChange={text => handleChange('lastName', text)}
             onBlur={() => handleBlur('lastName')}
-            mode="outlined"
-            style={globalStyles.input}
-            error={touched.lastName && !!errors.lastName}
-          />
-          {touched.lastName && !!errors.lastName && (
-            <Text style={{ color: 'red' }}>{errors.lastName}</Text>
-          )}
-
-          {/* Phone */}
-          <TextInput
-            label={t('mobile')}
-            value={user?.phoneNumber?.replace(/^\+91/, '') || ''}
-            mode="outlined"
-            disabled
-            style={[globalStyles.input, onboardingStyles.disabledInput]}
           />
 
-          {/* Email */}
-          <TextInput
-            ref={emailRef}
-            label={t('email')}
-            value={email}
-            onChangeText={t => handleChange('email', t)}
+          <InputField
+            label="Email"
+            value={values.email}
+            error={errors.email}
+            touched={touched.email}
+            onChange={text => handleChange('email', text)}
             onBlur={() => handleBlur('email')}
-            mode="outlined"
-            style={globalStyles.input}
-            error={touched.email && !!errors.email}
           />
-          {touched.email && !!errors.email && (
-            <Text style={{ color: 'red' }}>{errors.email}</Text>
-          )}
 
-          {/* Buttons */}
           <View style={onboardingStyles.rowButtons}>
             <Button
               mode={savedAddress ? "contained-tonal" : "outlined"}
@@ -225,32 +107,17 @@ export default function OnboardingScreen({ user, onComplete }: OnboardingProps) 
               disabled={!isFormValid()}
               style={[onboardingStyles.halfButton, onboardingStyles.spacingRight]}
             >
-              {savedAddress ? t('address_added') : t('add_address')}
+              {savedAddress ? 'Address Added' : 'Add Address'}
             </Button>
 
-            <Button
-              mode="contained"
-              onPress={handleSaveProfile}
-              disabled={loading || !isFormValid()}
-              style={onboardingStyles.halfButton}
-            >
-              {t('save')}
+            <Button mode="contained" onPress={handleSaveProfile} disabled={loading || !isFormValid()} style={onboardingStyles.halfButton}>
+              Save
             </Button>
           </View>
         </Surface>
       </KeyboardAwareScrollView>
 
-      <AddressModal
-        visible={addressModalVisible}
-        onDismiss={() => setAddressModalVisible(false)}
-        onSave={(data) => setSavedAddress(data)}
-        initialData={{
-          firstName,
-          lastName,
-          phone: user?.phoneNumber || '',
-        }}
-      />
-
+      <AddressModal visible={addressModalVisible} onDismiss={() => setAddressModalVisible(false)} onSave={setSavedAddress} initialData={{ firstName: values.firstName, lastName: values.lastName, phone: user?.phoneNumber || '' }} />
       {loading && <LoadingOverlay />}
     </SafeAreaView>
   );

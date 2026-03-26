@@ -3,21 +3,21 @@ import * as Localization from 'expo-localization';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-    Alert,
-    Keyboard,
-    View,
+  Alert,
+  Keyboard,
+  View
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import {
-    Button,
-    Divider,
-    Menu,
-    Surface,
-    Text,
-    TextInput,
+  Button,
+  Divider,
+  Menu,
+  Surface,
+  Text,
+  TextInput,
 } from 'react-native-paper';
-
 import { SafeAreaView } from 'react-native-safe-area-context';
+
 import LoadingOverlay from '../components/loadingOverlay';
 import i18n from '../config/i18n';
 import { auth } from '../firebaseConfig';
@@ -27,7 +27,8 @@ import { globalStyles } from '../style/globalStyle';
 const PHONE_LENGTH = 10;
 const OTP_LENGTH = 6;
 const OTP_TIMER = 60;
-
+const SKIP_OTP = __DEV__;
+// const SKIP_OTP = false;
 interface LoginProps {
   onLogin: (user: any) => void;
 }
@@ -112,7 +113,14 @@ export default function Login({ onLogin }: LoginProps) {
 
     try {
       setLoading(true);
-
+      if (SKIP_OTP) {
+        // fake login user
+        onLogin({
+          uid: '6rHUoW1eSBYKJOJ05gRpoDBEtzz1',
+          phoneNumber: '+919421266124',
+        });
+        return;
+      }
       const vid = await sendOtp(phone, recaptchaVerifier.current);
 
       setVerificationId(vid);
@@ -144,7 +152,6 @@ export default function Login({ onLogin }: LoginProps) {
 
     try {
       setLoading(true);
-
       const user = await verifyOtp(verificationId, finalOtp);
 
       if (__DEV__) console.log('User verified:', user.uid);
@@ -172,7 +179,6 @@ export default function Login({ onLogin }: LoginProps) {
 
   // ===== UI =====
   return (
-    <>
     <SafeAreaView style={{ flex: 1 }}>
       <KeyboardAwareScrollView
         contentContainerStyle={{
@@ -217,7 +223,7 @@ export default function Login({ onLogin }: LoginProps) {
             {t('subtitle')}
           </Text>
 
-          {/* PHONE */}
+          {/* PHONE INPUT */}
           <TextInput
             label={t('mobile')}
             value={phone}
@@ -232,7 +238,7 @@ export default function Login({ onLogin }: LoginProps) {
             onSubmitEditing={handleSendOTP}
           />
 
-          {/* OTP */}
+          {/* OTP INPUT */}
           {step === 2 && (
             <TextInput
               label={t('otp')}
@@ -256,41 +262,41 @@ export default function Login({ onLogin }: LoginProps) {
             />
           )}
 
-          {/* BUTTON */}
-          <Button
-            mode="contained"
-            onPress={step === 1 ? handleSendOTP : () => handleVerifyOTP()}
-            disabled={loading}
-            style={globalStyles.button}
-          >
-            {step === 1 ? t('send_otp') : t('verify_login')}
-          </Button>
+          {/* BUTTONS */}
+          <View style={{ marginTop: 16 }}>
+            <Button
+              mode="contained"
+              onPress={step === 1 ? handleSendOTP : () => handleVerifyOTP()}
+              disabled={loading}
+              style={globalStyles.button}
+            >
+              {step === 1 ? t('send_otp') : t('verify_login')}
+            </Button>
 
-          {/* RESEND + CHANGE */}
-          {step === 2 && !loading && (
-            <>
-              <Button
-                onPress={handleSendOTP}
-                disabled={timer > 0}
-                mode="text"
-                style={{ marginTop: 10 }}
-              >
-                {timer > 0
-                  ? t('resend_timer', { time: timer })
-                  : t('resend')}
-              </Button>
+            {step === 2 && !loading && (
+              <View style={{ marginTop: 10 }}>
+                <Button
+                  onPress={handleSendOTP}
+                  disabled={timer > 0}
+                  mode="text"
+                  style={{ marginBottom: 8 }}
+                >
+                  {timer > 0
+                    ? t('resend_timer', { time: timer })
+                    : t('resend')}
+                </Button>
 
-              <Button onPress={handleChangeNumber} mode="text">
-                {t('change_number')}
-              </Button>
-            </>
-          )}
+                <Button onPress={handleChangeNumber} mode="text">
+                  {t('change_number')}
+                </Button>
+              </View>
+            )}
+          </View>
         </Surface>
       </KeyboardAwareScrollView>
 
-      {/* 🔥 FULL SCREEN LOADER */}
+      {/* FULL SCREEN LOADER */}
       {loading && <LoadingOverlay />}
-      </SafeAreaView>
-    </>
+    </SafeAreaView>
   );
 }
