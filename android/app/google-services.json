@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1032320265485",
+    "project_id": "fruitwala-bc7a9",
+    "storage_bucket": "fruitwala-bc7a9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1032320265485:android:ca1bcefa2127a4ebee9444",
+        "android_client_info": {
+          "package_name": "fruit.wala"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDwmTmIcIViPt2C82oGXqjRAr7zhX9HjzA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
