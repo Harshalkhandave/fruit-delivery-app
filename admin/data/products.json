@@ -1,0 +1,173 @@
+[
+  {
+    "id": "apple-shimla-001",
+    "name": "Shimla Apple (Premium)",
+    "imageUrl": "https://images.unsplash.com/photo-1560806887-1e4cd0b6bcd6?w=500&q=80",
+    "unit": "1 kg",
+    "price": 180,
+    "oldPrice": 220,
+    "totalStock": 45,
+    "maxQty": 5,
+    "active": true,
+    "order": 1,
+    "variants": [
+      { "id": "v1", "unit": "500 gm", "price": 95, "oldPrice": 110, "totalStock": 20 },
+      { "id": "v2", "unit": "1 kg", "price": 180, "oldPrice": 220, "totalStock": 25 }
+    ]
+  },
+  {
+    "id": "banana-robusta-002",
+    "name": "Banana (Robusta)",
+    "imageUrl": "https://images.unsplash.com/photo-1571771894821-ad9b5886479c?w=500&q=80",
+    "unit": "1 dozen",
+    "price": 60,
+    "oldPrice": 75,
+    "totalStock": 100,
+    "maxQty": 10,
+    "active": true,
+    "order": 2
+  },
+  {
+    "id": "mango-alphonso-003",
+    "name": "Alphonso Mango",
+    "imageUrl": "https://images.unsplash.com/photo-1553279768-865429fa0078?w=500&q=80",
+    "unit": "1 dozen",
+    "price": 850,
+    "oldPrice": 1100,
+    "totalStock": 12,
+    "maxQty": 2,
+    "active": true,
+    "order": 3
+  },
+  {
+    "id": "orange-nagpur-004",
+    "name": "Nagpur Orange",
+    "imageUrl": "https://images.unsplash.com/photo-1582979512210-99b6a53386f9?w=500&q=80",
+    "unit": "1 kg",
+    "price": 110,
+    "totalStock": 60,
+    "active": true,
+    "order": 4
+  },
+  {
+    "id": "grapes-black-005",
+    "name": "Black Grapes (Seedless)",
+    "imageUrl": "https://images.unsplash.com/photo-1537640538966-79f369143f8c?w=500&q=80",
+    "unit": "500 gm",
+    "price": 85,
+    "oldPrice": 100,
+    "totalStock": 30,
+    "maxQty": 4,
+    "active": true,
+    "order": 5
+  },
+  {
+    "id": "papaya-organic-006",
+    "name": "Organic Papaya",
+    "imageUrl": "https://images.unsplash.com/photo-1614436163996-25cee5f54290?w=500&q=80",
+    "unit": "1 pc (approx 1kg)",
+    "price": 65,
+    "totalStock": 15,
+    "active": true,
+    "order": 6
+  },
+  {
+    "id": "watermelon-hybrid-007",
+    "name": "Watermelon (Large)",
+    "imageUrl": "https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=500&q=80",
+    "unit": "1 pc (3-4kg)",
+    "price": 140,
+    "totalStock": 20,
+    "maxQty": 3,
+    "active": true,
+    "order": 7
+  },
+  {
+    "id": "pomegranate-bhagwa-008",
+    "name": "Pomegranate (Bhagwa)",
+    "imageUrl": "https://images.unsplash.com/photo-1615484477771-31c1608f40d6?w=500&q=80",
+    "unit": "1 kg",
+    "price": 260,
+    "oldPrice": 300,
+    "totalStock": 25,
+    "active": true,
+    "order": 8,
+    "variants": [
+      { "id": "v3", "unit": "500 gm", "price": 135, "totalStock": 10 },
+      { "id": "v4", "unit": "1 kg", "price": 260, "totalStock": 15 }
+    ]
+  },
+  {
+    "id": "pineapple-queen-009",
+    "name": "Pineapple",
+    "imageUrl": "https://images.unsplash.com/photo-1550258114-b834e70e9be1?w=500&q=80",
+    "unit": "1 pc",
+    "price": 90,
+    "totalStock": 10,
+    "active": true,
+    "order": 9
+  },
+  {
+    "id": "guava-vnr-010",
+    "name": "Guava (VNR Bihi)",
+    "imageUrl": "https://images.unsplash.com/photo-1536511132770-e51080087113?w=500&q=80",
+    "unit": "500 gm",
+    "price": 45,
+    "totalStock": 40,
+    "active": true,
+    "order": 10
+  },
+  {
+    "id": "dragon-fruit-011",
+    "name": "Dragon Fruit",
+    "imageUrl": "https://images.unsplash.com/photo-1527325241048-2161b306b8f5?w=500&q=80",
+    "unit": "1 pc",
+    "price": 120,
+    "totalStock": 8,
+    "maxQty": 4,
+    "active": true,
+    "order": 11
+  },
+  {
+    "id": "kiwi-zespri-012",
+    "name": "Kiwi (Zespri)",
+    "imageUrl": "https://images.unsplash.com/photo-1585059895316-29892866d3a8?w=500&q=80",
+    "unit": "3 pcs",
+    "price": 150,
+    "oldPrice": 180,
+    "totalStock": 20,
+    "active": true,
+    "order": 12
+  },
+  {
+    "id": "strawberry-mahabaleshwar-013",
+    "name": "Strawberries",
+    "imageUrl": "https://images.unsplash.com/photo-1464965911861-746a04b4bca6?w=500&q=80",
+    "unit": "250 gm (Box)",
+    "price": 120,
+    "totalStock": 15,
+    "active": true,
+    "order": 13
+  },
+  {
+    "id": "pear-imported-014",
+    "name": "Pear (Babugosha)",
+    "imageUrl": "https://images.unsplash.com/photo-1635338166540-3949980d9c1e?w=500&q=80",
+    "unit": "1 kg",
+    "price": 200,
+    "totalStock": 10,
+    "active": true,
+    "order": 14
+  },
+  {
+    "id": "custard-apple-015",
+    "name": "Custard Apple (Sitaphal)",
+    "imageUrl": "https://images.unsplash.com/photo-1595133648411-a3f4e2467d0f?w=500&q=80",
+    "unit": "1 kg",
+    "price": 180,
+    "totalStock": 5,
+    "maxQty": 2,
+    "active": true,
+    "order": 15
+  }
+]

@@ -6,7 +6,7 @@ import { View } from 'react-native';
 import MapView, { Polygon, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Button, IconButton, Modal, Portal, Text } from 'react-native-paper';
 import { NEPTI_BOUNDARY } from '../constants/deliveryZone';
-import { addressStyles } from '../style/addressStyle';
+import { addressStyles, colors, globalStyles } from '../style';
 
 const DEFAULT_LOC = {
   latitude: 19.0961,
@@ -136,7 +136,7 @@ export default function NeptiMapPicker({ visible, onLocationSelected, onCancel }
   return (
     <Portal>
       <Modal visible={visible} onDismiss={onCancel} contentContainerStyle={addressStyles.fullScreen}>
-        <View style={{ flex: 1 }}>
+      <View style={globalStyles.container}>
           <MapView
             provider={PROVIDER_GOOGLE}
             style={addressStyles.map}
@@ -167,7 +167,7 @@ export default function NeptiMapPicker({ visible, onLocationSelected, onCancel }
           </MapView>
 
           <View style={addressStyles.markerFixed} pointerEvents="none">
-            <IconButton icon="map-marker" size={40} iconColor={isInside ? '#2e7d32' : 'red'} />
+            <IconButton icon="map-marker" size={40} iconColor={isInside ? colors.success : colors.errorText} />
           </View>
 
           <View style={addressStyles.topBar}>
@@ -178,7 +178,7 @@ export default function NeptiMapPicker({ visible, onLocationSelected, onCancel }
           </View>
 
           <View style={addressStyles.footer}>
-            <Text style={{ textAlign: 'center', marginBottom: 10 }}>
+          <Text style={[globalStyles.centerText, globalStyles.mb10]}>
               {isInside
                 ? t('delivery_available')
                 : t('delivery_unavailable')}
@@ -186,7 +186,7 @@ export default function NeptiMapPicker({ visible, onLocationSelected, onCancel }
 
             <Button
               mode="outlined"
-              style={{ marginBottom: 10 }}
+              style={globalStyles.mb10}
               disabled={isUseCurrentLocationDisabled()}
               onPress={handleUseCurrentLocation}
             >
@@ -196,7 +196,7 @@ export default function NeptiMapPicker({ visible, onLocationSelected, onCancel }
             <Button
               mode="contained"
               disabled={!isInside}
-              style={{ backgroundColor: isInside ? '#2e7d32' : '#ccc' }}
+              style={isInside ? addressStyles.confirmButton : addressStyles.confirmButtonDisabled}
               onPress={() =>
                 onLocationSelected({
                   latitude: region.latitude,

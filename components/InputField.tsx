@@ -1,7 +1,8 @@
 // components/InputField.tsx
 import React from 'react';
-import { Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { TextInput } from 'react-native-paper';
+import { colors } from '../style/colors';
 
 interface Props {
   label: string;
@@ -15,8 +16,9 @@ interface Props {
 
 export default function InputField({ label, value, error, touched, onChange, onBlur, ...props }: Props) {
   return (
-    <View style={{ marginBottom: 12 }}>
+    <View style={styles.container}>
       <TextInput
+        mode='flat'
         label={label}
         value={value}
         onChangeText={onChange}
@@ -24,7 +26,17 @@ export default function InputField({ label, value, error, touched, onChange, onB
         error={!!(touched && error)}
         {...props}
       />
-      {touched && error ? <Text style={{ color: 'red', marginTop: 4 }}>{error}</Text> : null}
+      {touched && error ? <Text style={styles.container}>{error}</Text> : null}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+    container: {
+      marginBottom: 12,
+    },
+    errorText: {
+      color: colors.error,
+      marginTop: 4,
+    },
+  });

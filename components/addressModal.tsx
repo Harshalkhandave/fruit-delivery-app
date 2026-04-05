@@ -3,8 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Keyboard, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { Button, Modal, Portal, Text, TextInput } from 'react-native-paper';
-import { addressStyles } from '../style/addressStyle';
-import { globalStyles } from '../style/globalStyle';
+import { addressStyles, globalStyles, onboardingStyles } from '../style';
 import NeptiMapPicker from './mapPicker'; // 🟢 Import your new Map component
 
 interface AddressModalProps {
@@ -24,6 +23,12 @@ interface AddressModalProps {
     firstName: string;
     lastName: string;
     phone: string;
+  };
+  prefillAddress?: {
+    line1: string;
+    line2: string;
+    nearby?: string;
+    coords?: { latitude: number; longitude: number };
   };
 }
 
@@ -48,6 +53,7 @@ export default function AddressModal({
   onDismiss,
   onSave,
   initialData,
+  prefillAddress
 }: AddressModalProps) {
   const { t } = useTranslation();
 
@@ -106,15 +112,16 @@ export default function AddressModal({
       setFName(initialData.firstName || '');
       setLName(initialData.lastName || '');
       setPhone(initialData.phone.replace(/^\+91/, '') || '');
-      setLine1('');
-      setLine2('');
-      setNearby('');
+      setLine1(prefillAddress?.line1 || '');
+      setLine2(prefillAddress?.line2 || '');
+      setNearby(prefillAddress?.nearby || '');
+      setSelectedCoords(prefillAddress?.coords || null);
       setShowMap(false);
       setSelectedCoords(null);
       setErrors({ fName: '', lName: '', phone: '', line1: '', line2: '' });
       setTouched({ fName: false, lName: false, phone: false, line1: false, line2: false });
     }
-  }, [visible, initialData]);
+  }, [visible, initialData, prefillAddress]);
 
   // ===== HANDLERS =====
   const handleChange = (field: keyof FormErrors | 'nearby', value: string) => {
@@ -163,10 +170,10 @@ export default function AddressModal({
           enableOnAndroid
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 20 }}
+          contentContainerStyle={globalStyles.pb20}
         >
           <Text variant="titleLarge" style={addressStyles.modalTitle}>
-            {t('add_delivery_address')}
+            {prefillAddress ? t('edit_delivery_address') : t('add_delivery_address')}
           </Text>
           
           <Button 
@@ -176,7 +183,7 @@ export default function AddressModal({
               Keyboard.dismiss();
               setShowMap(true)}
             }
-            style={{ marginBottom: 15 }}
+            style={globalStyles.mb20}
           >
             {selectedCoords ? t('location_pinned') : t('select_exact_location')}
           </Button>
@@ -192,31 +199,31 @@ export default function AddressModal({
           />
 
           {/* First + Last */}
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <View style={{ flex: 1 }}>
+          <View style={addressStyles.nameRow}>
+            <View style={addressStyles.nameField}>
               <TextInput
                 label={`${t('first_name')} *`}
                 value={fName}
                 onChangeText={(t) => handleChange('fName', t)}
                 onBlur={() => handleBlur('fName')}
-                mode="outlined"
+                mode="flat"
                 style={globalStyles.input}
                 error={touched.fName && !!errors.fName}
               />
-              {touched.fName && !!errors.fName && <Text style={{ color: 'red', fontSize: 12 }}>{errors.fName}</Text>}
+              {touched.fName && !!errors.fName && <Text style={onboardingStyles.errorText}>{errors.fName}</Text>}
             </View>
 
-            <View style={{ flex: 1 }}>
+            <View style={addressStyles.nameField}>
               <TextInput
                 label={`${t('last_name')} *`}
                 value={lName}
                 onChangeText={(t) => handleChange('lName', t)}
                 onBlur={() => handleBlur('lName')}
-                mode="outlined"
+                mode="flat"
                 style={globalStyles.input}
                 error={touched.lName && !!errors.lName}
               />
-              {touched.lName && !!errors.lName && <Text style={{ color: 'red', fontSize: 12 }}>{errors.lName}</Text>}
+              {touched.lName && !!errors.lName && <Text style={onboardingStyles.errorText}>{errors.lName}</Text>}
             </View>
           </View>
 
@@ -227,11 +234,11 @@ export default function AddressModal({
             onChangeText={(t) => handleChange('phone', t)}
             onBlur={() => handleBlur('phone')}
             keyboardType="phone-pad"
-            mode="outlined"
+            mode="flat"
             style={globalStyles.input}
             error={touched.phone && !!errors.phone}
           />
-          {touched.phone && !!errors.phone && <Text style={{ color: 'red', fontSize: 12 }}>{errors.phone}</Text>}
+          {touched.phone && !!errors.phone && <Text style={onboardingStyles.errorText}>{errors.phone}</Text>}
 
           {/* Address Line 1 */}
           <TextInput
@@ -239,11 +246,11 @@ export default function AddressModal({
             value={line1}
             onChangeText={(t) => handleChange('line1', t)}
             onBlur={() => handleBlur('line1')}
-            mode="outlined"
+            mode="flat"
             style={globalStyles.input}
             error={touched.line1 && !!errors.line1}
           />
-          {touched.line1 && !!errors.line1 && <Text style={{ color: 'red', fontSize: 12 }}>{errors.line1}</Text>}
+          {touched.line1 && !!errors.line1 && <Text style={onboardingStyles.errorText}>{errors.line1}</Text>}
 
           {/* Address Line 2 */}
           <TextInput
@@ -251,37 +258,37 @@ export default function AddressModal({
             value={line2}
             onChangeText={(t) => handleChange('line2', t)}
             onBlur={() => handleBlur('line2')}
-            mode="outlined"
+            mode="flat"
             style={globalStyles.input}
             error={touched.line2 && !!errors.line2}
           />
-          {touched.line2 && !!errors.line2 && <Text style={{ color: 'red', fontSize: 12 }}>{errors.line2}</Text>}
+          {touched.line2 && !!errors.line2 && <Text style={onboardingStyles.errorText}>{errors.line2}</Text>}
 
           {/* Nearby */}
           <TextInput
             label={t('nearby_optional')}
             value={nearby}
             onChangeText={(t) => handleChange('nearby', t)}
-            mode="outlined"
+            mode="flat"
             style={globalStyles.input}
           />
 
           {/* City + State */}
-          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
-            <TextInput label={`${t('city')} *`} value="Ahilyanagar" disabled style={{ flex: 1 }} />
-            <TextInput label={`${t('state')} *`} value="Maharashtra" disabled style={{ flex: 1 }} />
+          <View style={addressStyles.cityStateRow}>
+            <TextInput label={`${t('city')} *`} value="Ahilyanagar" disabled style={addressStyles.nameField} />
+            <TextInput label={`${t('state')} *`} value="Maharashtra" disabled style={addressStyles.nameField} />
           </View>
 
           {/* Buttons */}
           <View style={addressStyles.row}>
-            <Button mode="outlined" onPress={onDismiss} style={{ flex: 1, marginRight: 10 }}>
+            <Button mode="outlined" onPress={onDismiss} style={addressStyles.cancelButton}>
               {t('cancel')}
             </Button>
             <Button 
               mode="contained" 
               onPress={handleSave} 
               disabled={!isFormValid()} 
-              style={{ flex: 1 }}
+              style={addressStyles.saveButton}
             >
               {t('save_address')}
             </Button>

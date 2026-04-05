@@ -1,5 +1,6 @@
 import React from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { colors } from '../style/colors';
 
 export default function LoadingOverlay() {
   return (
@@ -16,7 +17,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)', // dark transparent
+    backgroundColor: colors.overlay,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 999,

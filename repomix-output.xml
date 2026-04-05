@@ -1,0 +1,2751 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+app/
+  _layout.tsx
+  EditProfile.tsx
+  index.tsx
+assets/
+  images/
+    android-icon-background.png
+    android-icon-foreground.png
+    android-icon-monochrome.png
+    favicon.png
+    icon.png
+    partial-react-logo.png
+    react-logo.png
+    react-logo@2x.png
+    react-logo@3x.png
+    splash-icon.png
+components/
+  addressModal.tsx
+  editProfileScreen.tsx
+  fruitHome.tsx
+  InputField.tsx
+  loadingOverlay.tsx
+  login.tsx
+  mapPicker.tsx
+  onBoardingScreen.tsx
+config/
+  i18n.ts
+constants/
+  deliveryZone.ts
+context/
+  UserContext.tsx
+hooks/
+  useAuth.ts
+locales/
+  en.json
+  mr.json
+services/
+  authService.ts
+  useProfileForm.ts
+  userService.ts
+style/
+  addressStyle.ts
+  colors.ts
+  globalStyle.ts
+  index.ts
+  onboardingStyle.ts
+  theme.ts
+.gitignore
+app.json
+eas.json
+eslint.config.js
+package.json
+README.md
+tsconfig.json
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="style/index.ts">
+export { addressStyles } from './addressStyle';
+export { colors } from './colors';
+export { globalStyles } from './globalStyle';
+export { onboardingStyles } from './onboardingStyle';
+</file>
+
+<file path="style/theme.ts">
+import { MD3LightTheme } from 'react-native-paper';
+import { colors } from './colors';
+
+export const appTheme = {
+  ...MD3LightTheme,
+  colors: {
+    ...MD3LightTheme.colors,
+    primary: colors.primary,
+    error: colors.error,
+  },
+};
+</file>
+
+<file path="eas.json">
+{
+  "cli": {
+    "version": ">= 18.4.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal"
+    },
+    "production": {
+      "autoIncrement": true
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
+</file>
+
+<file path="app/EditProfile.tsx">
+import { useRouter } from 'expo-router';
+import { doc, getDoc } from 'firebase/firestore';
+import React from 'react';
+
+import EditProfileScreen from '../components/editProfileScreen';
+import { useUser } from '../context/UserContext'; // ✅
+import { db } from '../firebaseConfig';
+
+export default function EditProfilePage() {
+  const { user, setUser } = useUser();   
+  const router = useRouter();
+
+  return (
+    <EditProfileScreen
+      user={user}
+      onComplete={async () => {
+        const userRef = doc(db, 'users', user.uid);
+        const userSnap = await getDoc(userRef);
+
+        if (userSnap.exists()) {
+          setUser({ ...user, ...userSnap.data() });
+        }
+
+        router.back(); // ✅ go back
+      }}
+    />
+  );
+}
+</file>
+
+<file path="components/editProfileScreen.tsx">
+import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Alert, Keyboard, StyleSheet, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import { Button, Surface, Text } from 'react-native-paper';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import InputField from '../components/InputField';
+import LoadingOverlay from '../components/loadingOverlay';
+import { auth } from '../firebaseConfig';
+import { sendOTP, updateAuthPhoneNumber } from '../services/authService';
+import { Field, useProfileForm } from '../services/useProfileForm';
+import { checkIfUserExists, updateUserProfile } from '../services/userService';
+import { colors, globalStyles } from '../style';
+
+interface Props { user: any; onComplete: () => void; }
+
+type PhoneVerifyState = 'idle' | 'otp_sent' | 'verified';
+
+export default function EditProfileScreen({ user, onComplete }: Props) {
+  const { t } = useTranslation();
+  const router = useRouter();
+  const recaptchaVerifier = useRef<FirebaseRecaptchaVerifierModal>(null);
+
+  const [loading, setLoading] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+
+  const originalPhone = user?.phoneNumber?.replace(/^\+91/, '') || '';
+  const [phoneVerifyState, setPhoneVerifyState] = useState<PhoneVerifyState>('idle');
+  const [verificationId, setVerificationId] = useState<string>('');
+  const [otpValue, setOtpValue] = useState('');
+
+  // ── Validation ────────────────────────────────────────────────────────────
+  const validate = (field: Field, value: string) => {
+    const trimmed = value.trim();
+
+    if (field === 'firstName' || field === 'lastName') {
+      if (!trimmed) return t('name_required');
+      if (!/^[A-Za-z\u0900-\u097F\s]+$/.test(trimmed)) return t('only_letters');
+      if (trimmed.length < 2) return t('min_2_characters');
+    }
+    if (field === 'email') {
+      if (trimmed && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return t('invalid_email');
+    }
+    if (field === 'phone') {
+      if (!trimmed) return t('phone_required');
+      if (!/^[0-9]{10}$/.test(trimmed)) return t('invalid_phone');
+    }
+    return '';
+  };
+
+  const { values, errors, touched, handleChange, handleBlur, isFormValid, setValues } =
+    useProfileForm({
+      initialValues: { firstName: '', lastName: '', email: '', phone: '' },
+      validate,
+    });
+
+  useEffect(() => {
+    setValues({
+      firstName: user?.firstName || '',
+      lastName: user?.lastName || '',
+      email: user?.email || '',
+      phone: originalPhone,
+    });
+  }, [user]);
+
+  // ── Derived state ─────────────────────────────────────────────────────────
+  const phoneChanged = values.phone !== originalPhone;
+
+  const isSaveEnabled = (): boolean => {
+    if (!isFormValid()) return false;
+    if (phoneChanged && phoneVerifyState !== 'verified') return false;
+    return true;
+  };
+
+  // ── Phone field change — reset OTP state on every edit ────────────────────
+  const handlePhoneChange = (text: string) => {
+    handleChange('phone', text.replace(/\D/g, ''));
+    if (phoneVerifyState !== 'idle') {
+      setPhoneVerifyState('idle');
+      setVerificationId('');
+      setOtpValue('');
+    }
+  };
+
+  // ── Send OTP ──────────────────────────────────────────────────────────────
+  const handleSendOtp = async () => {
+    Keyboard.dismiss();
+
+    handleBlur('phone');
+    if (validate('phone', values.phone)) return;
+
+    if (!recaptchaVerifier.current) {
+      Alert.alert(t('error'), t('recaptcha_not_ready'));
+      return;
+    }
+
+    try {
+      setOtpLoading(true);
+      const formattedPhone = '+91' + values.phone;
+
+      const exists = await checkIfUserExists('phoneNumber', formattedPhone, user.uid);
+      if (exists) {
+        Alert.alert(t('error'), t('phone_already_registered'));
+        return;
+      }
+
+      const id = await sendOTP(values.phone, recaptchaVerifier.current);
+      setVerificationId(id);
+      setPhoneVerifyState('otp_sent');
+      Alert.alert(t('success'), t('otp_sent'));
+    } catch (err: any) {
+      Alert.alert(t('error'), err?.message || t('otp_failed'));
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  // ── Verify OTP ────────────────────────────────────────────────────────────
+  const handleVerifyOtp = async () => {
+    if (!otpValue || otpValue.length < 6) {
+      Alert.alert(t('error'), t('invalid_otp'));
+      return;
+    }
+
+    try {
+      setOtpLoading(true);
+      await updateAuthPhoneNumber(verificationId, otpValue);
+      setPhoneVerifyState('verified');
+      setOtpValue('');
+    } catch (err: any) {
+      Alert.alert(t('error'), err?.message || t('otp_invalid'));
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  // ── Save ──────────────────────────────────────────────────────────────────
+  const handleSave = async () => {
+    if (loading) return;
+    Keyboard.dismiss();
+
+    Object.keys(values).forEach(f => handleBlur(f as Field));
+    if (!isSaveEnabled()) return;
+
+    try {
+      setLoading(true);
+
+      if (values.email && values.email !== user.email) {
+        const exists = await checkIfUserExists('email', values.email, user.uid);
+        if (exists) {
+          Alert.alert(t('error'), t('email_already_exists'));
+          return;
+        }
+      }
+
+      const formattedPhone = '+91' + values.phone;
+      await updateUserProfile(user.uid, { ...values, phoneNumber: formattedPhone });
+      onComplete();
+    } catch {
+      Alert.alert(t('error'), t('something_went_wrong'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── Cancel ────────────────────────────────────────────────────────────────
+  const handleCancel = () => router.back();
+
+  return (
+    <SafeAreaView style={globalStyles.container}>
+      <FirebaseRecaptchaVerifierModal
+        ref={recaptchaVerifier}
+        firebaseConfig={auth.app.options}
+      />
+
+      <KeyboardAwareScrollView
+        contentContainerStyle={globalStyles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Surface style={globalStyles.card} elevation={3}>
+          <Text variant="headlineMedium" style={globalStyles.title}>
+            {t('edit_profile')}
+          </Text>
+
+          {/* ── Name ── */}
+          <InputField
+            label={`${t('first_name')} *`}
+            value={values.firstName}
+            error={errors.firstName}
+            touched={touched.firstName}
+            onChange={v => handleChange('firstName', v)}
+            onBlur={() => handleBlur('firstName')}
+          />
+          <InputField
+            label={`${t('last_name')} *`}
+            value={values.lastName}
+            error={errors.lastName}
+            touched={touched.lastName}
+            onChange={v => handleChange('lastName', v)}
+            onBlur={() => handleBlur('lastName')}
+          />
+
+          {/* ── Phone row ── */}
+          <View style={styles.phoneRow}>
+            <View style={styles.phoneInput}>
+              <InputField
+                label={`${t('mobile')} *`}
+                value={values.phone}
+                error={errors.phone}
+                touched={touched.phone}
+                onChange={handlePhoneChange}
+                onBlur={() => handleBlur('phone')}
+                keyboardType="phone-pad"
+                editable={phoneVerifyState !== 'verified'}
+              />
+            </View>
+
+            {phoneChanged && phoneVerifyState !== 'verified' && (
+              <Button
+                mode="outlined"
+                onPress={handleSendOtp}
+                loading={otpLoading && phoneVerifyState === 'idle'}
+                disabled={otpLoading || !!errors.phone || values.phone.length !== 10}
+                style={styles.sendOtpBtn}
+                labelStyle={styles.smallLabel}
+                compact
+              >
+                {phoneVerifyState === 'otp_sent' ? t('resend') : t('send_otp')}
+              </Button>
+            )}
+
+            {phoneVerifyState === 'verified' && (
+              <Text style={styles.verifiedBadge}>✓ {t('verified')}</Text>
+            )}
+          </View>
+
+          {/* ── OTP row ── */}
+          {phoneVerifyState === 'otp_sent' && (
+            <View style={styles.otpRow}>
+              <View style={styles.otpInput}>
+                <InputField
+                  label={t('otp')}
+                  value={otpValue}
+                  error=""
+                  touched={false}
+                  onChange={v => setOtpValue(v.replace(/\D/g, '').slice(0, 6))}
+                  onBlur={() => {}}
+                  keyboardType="number-pad"
+                />
+              </View>
+              <Button
+                mode="contained"
+                onPress={handleVerifyOtp}
+                loading={otpLoading}
+                disabled={otpLoading || otpValue.length < 6}
+                style={styles.verifyBtn}
+                labelStyle={styles.smallLabel}
+                compact
+              >
+                {t('verify_login')}
+              </Button>
+            </View>
+          )}
+
+          {/* ── Email ── */}
+          <InputField
+            label={t('email')}
+            value={values.email}
+            error={errors.email}
+            touched={touched.email}
+            onChange={v => handleChange('email', v)}
+            onBlur={() => handleBlur('email')}
+          />
+
+          {/* ── Action buttons ── */}
+          <View style={styles.actionRow}>
+            <Button
+              mode="outlined"
+              onPress={handleCancel}
+              disabled={loading}
+              style={styles.actionBtn}
+            >
+              {t('cancel')}
+            </Button>
+            <Button
+              mode="contained"
+              onPress={handleSave}
+              disabled={loading || !isSaveEnabled()}
+              style={styles.actionBtn}
+            >
+              {t('save')}
+            </Button>
+          </View>
+        </Surface>
+      </KeyboardAwareScrollView>
+
+      {loading && <LoadingOverlay />}
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  phoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  phoneInput: {
+    flex: 1,
+  },
+  sendOtpBtn: {
+    alignSelf: 'center',
+    marginTop: 6,
+  },
+  smallLabel: {
+    fontSize: 12,
+  },
+  verifiedBadge: {
+    color: colors.success,
+    fontWeight: '600',
+    alignSelf: 'center',
+    marginTop: 6,
+    fontSize: 13,
+  },
+  otpRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  otpInput: {
+    flex: 1,
+  },
+  verifyBtn: {
+    alignSelf: 'center',
+    marginTop: 6,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 10,
+  },
+  actionBtn: {
+    flex: 1,
+  },
+});
+</file>
+
+<file path="components/InputField.tsx">
+// components/InputField.tsx
+import React from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import { TextInput } from 'react-native-paper';
+import { colors } from '../style/colors';
+
+interface Props {
+  label: string;
+  value: string;
+  error?: string;
+  touched?: boolean;
+  onChange: (text: string) => void;
+  onBlur: () => void;
+  [key: string]: any; // any extra props for TextInput
+}
+
+export default function InputField({ label, value, error, touched, onChange, onBlur, ...props }: Props) {
+  return (
+    <View style={styles.container}>
+      <TextInput
+        mode='flat'
+        label={label}
+        value={value}
+        onChangeText={onChange}
+        onBlur={onBlur}
+        error={!!(touched && error)}
+        {...props}
+      />
+      {touched && error ? <Text style={styles.container}>{error}</Text> : null}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+    container: {
+      marginBottom: 12,
+    },
+    errorText: {
+      color: colors.error,
+      marginTop: 4,
+    },
+  });
+</file>
+
+<file path="components/loadingOverlay.tsx">
+import React from 'react';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { colors } from '../style/colors';
+
+export default function LoadingOverlay() {
+  return (
+    <View style={styles.overlay}>
+      <ActivityIndicator size="large" color="#ffffff" />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.overlay,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 999,
+  },
+});
+</file>
+
+<file path="config/i18n.ts">
+import * as Localization from 'expo-localization';
+import i18n from 'i18next';
+import { initReactI18next } from 'react-i18next';
+
+import en from '../locales/en.json';
+import mr from '../locales/mr.json';
+
+const resources = {
+  en: { translation: en },
+  mr: { translation: mr },
+};
+
+// Get device locale safely
+const deviceLocale = Localization.getLocales()[0]?.languageTag ?? 'en';
+const deviceLang: 'en' | 'mr' = ['en', 'mr'].includes(deviceLocale.split('-')[0])
+  ? (deviceLocale.split('-')[0] as 'en' | 'mr')
+  : 'en';
+
+i18n.use(initReactI18next).init({
+  resources,
+  lng: deviceLang,
+  fallbackLng: 'en',
+  interpolation: { escapeValue: false },
+});
+
+export default i18n;
+</file>
+
+<file path="constants/deliveryZone.ts">
+export const NEPTI_BOUNDARY = [
+    { latitude: 19.100088837823463, longitude: 74.71246197531892 },
+    { latitude: 19.100189512730182, longitude: 74.71207132813157 },
+    { latitude: 19.094954336372766, longitude: 74.71157414080346 },
+    { latitude: 19.09086004459499,  longitude: 74.71558715281375 },
+    { latitude: 19.09012171890737,  longitude: 74.71675909437442 },
+    { latitude: 19.086631407445225, longitude: 74.71853476340544 },
+    { latitude: 19.090155279237194, longitude: 74.72528230572462 },
+    { latitude: 19.095793318087047, longitude: 74.72528230572462 },
+    { latitude: 19.09924987788736,  longitude: 74.72567295291199 }
+  ];
+  
+  // Set the map's default view to the first point of your boundary
+  export const NEPTI_INITIAL_REGION = {
+    latitude: 19.100088837823463,
+    longitude: 74.71246197531892,
+    latitudeDelta: 0.015,
+    longitudeDelta: 0.015,
+  };
+</file>
+
+<file path="context/UserContext.tsx">
+// context/UserContext.tsx
+import React, { createContext, ReactNode, useContext, useState } from 'react';
+
+interface UserContextType {
+  user: any;
+  setUser: (user: any) => void;
+}
+
+const UserContext = createContext<UserContextType | null>(null);
+
+interface Props {
+  children: ReactNode; // ✅ must be ReactNode
+}
+
+export const UserProvider = ({ children }: Props) => {
+  const [user, setUser] = useState<any>(null);
+
+  // Make sure nothing outside JSX, nothing like "" or spaces
+  return (
+    <UserContext.Provider value={{ user, setUser }}>
+      {children}
+    </UserContext.Provider>
+  );
+};
+
+export const useUser = () => {
+  const context = useContext(UserContext);
+  if (!context) {
+    throw new Error('useUser must be used inside UserProvider');
+  }
+  return context;
+};
+</file>
+
+<file path="hooks/useAuth.ts">
+import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
+import { sendOTP, verifyOTP } from '../services/authService';
+
+export const useAuth = () => {
+
+  const sendOtp = async (phone: string, recaptcha: any) => {
+    const verificationId = await sendOTP(phone, recaptcha);
+    return verificationId;
+  };
+
+  const verifyOtp = async (verificationId: string, otp: string) => {
+    const userCredential = await verifyOTP(verificationId, otp);
+    const user = userCredential.user;
+
+    const userRef = doc(db, 'users', user.uid);
+    const userSnap = await getDoc(userRef);
+
+    if (!userSnap.exists()) {
+      await setDoc(userRef, {
+        phoneNumber: user.phoneNumber,
+        role: 'customer',
+        createdAt: serverTimestamp(),
+        isProfileComplete: false,
+      });
+    }
+
+    return user;
+  };
+
+  return {
+    sendOtp,
+    verifyOtp,
+  };
+};
+</file>
+
+<file path="services/authService.ts">
+// services/authService.ts
+
+import {
+  PhoneAuthProvider,
+  signInWithCredential,
+  updatePhoneNumber,
+} from 'firebase/auth';
+import { auth } from '../firebaseConfig';
+
+// 📱 Send OTP
+export const sendOTP = async (
+  phone: string,
+  recaptchaVerifier: any
+): Promise<string> => {
+  const phoneProvider = new PhoneAuthProvider(auth);
+
+  const verificationId = await phoneProvider.verifyPhoneNumber(
+    `+91${phone}`,
+    recaptchaVerifier
+  );
+
+  return verificationId;
+};
+
+// 🔐 Verify OTP
+export const verifyOTP = async (
+  verificationId: string,
+  otp: string
+) => {
+  const credential = PhoneAuthProvider.credential(
+    verificationId,
+    otp
+  );
+
+  return await signInWithCredential(auth, credential);
+};
+
+export const updateAuthPhoneNumber = async (
+  verificationId: string,
+  otp: string
+) => {
+  const credential = PhoneAuthProvider.credential(verificationId, otp);
+  // Updates the phone number on the currently signed-in Firebase Auth user
+  await updatePhoneNumber(auth.currentUser!, credential);
+};
+</file>
+
+<file path="services/useProfileForm.ts">
+// services/useProfileForm.ts
+import { useState } from 'react';
+
+export type Field = 'firstName' | 'lastName' | 'email' | 'phone';
+
+export type ErrorsType = Record<Field, string>;
+export type TouchedType = Record<Field, boolean>;
+
+interface UseProfileFormProps {
+  initialValues?: Partial<Record<Field, string>>;
+  validate?: (field: Field, value: string) => string;
+}
+
+export function useProfileForm({ initialValues = {}, validate }: UseProfileFormProps) {
+  const [values, setValues] = useState<Record<Field, string>>({
+    firstName: initialValues.firstName || '',
+    lastName: initialValues.lastName || '',
+    email: initialValues.email || '',
+    phone: initialValues.phone || '',
+  });
+
+  const [errors, setErrors] = useState<ErrorsType>({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+  });
+
+  const [touched, setTouched] = useState<TouchedType>({
+    firstName: false,
+    lastName: false,
+    email: false,
+    phone: false,
+  });
+
+  const handleChange = (field: Field, value: string) => {
+    setValues(prev => ({ ...prev, [field]: value }));
+    setErrors(prev => ({ ...prev, [field]: '' }));
+  };
+
+  const handleBlur = (field: Field) => {
+    const value = values[field];
+    const error = validate ? validate(field, value) : '';
+    setErrors(prev => ({ ...prev, [field]: error }));
+    setTouched(prev => ({ ...prev, [field]: true }));
+  };
+
+  const isFormValid = () => {
+    return !Object.values(errors).some(e => e !== '');
+  };
+
+  return {
+    values,
+    errors,
+    touched,
+    handleChange,
+    handleBlur,
+    isFormValid,
+    setValues,
+    setErrors,
+    setTouched,
+  };
+}
+</file>
+
+<file path="style/colors.ts">
+export const colors = {
+    // ===== PRIMARY =====
+    primary: '#6200EE',
+    primaryLight: '#9D46FF',
+    primaryDark: '#4B00B5',
+  
+    // ===== BACKGROUND =====
+    background: '#F5F5F5',
+    surface: '#FFFFFF',
+  
+    // ===== TEXT =====
+    textPrimary: '#1A1A1A',
+    textSecondary: '#666666',
+    textLight: '#999999',
+  
+    // ===== BORDER / INPUT =====
+    border: '#E0E0E0',
+    inputBackground: '#FFFFFF',
+    disabled: '#E0E0E0',
+  
+    // ===== ERROR =====
+    error: '#B00020',
+  
+    // ===== SUCCESS =====
+    success: '#2E7D32',
+  
+    // ===== OVERLAY =====
+    overlay: 'rgba(0,0,0,0.5)',
+
+    errorText: 'red',        // already planned from earlier audit
+    disabledButton: '#ccc',
+  };
+</file>
+
+<file path="style/globalStyle.ts">
+import { StyleSheet } from 'react-native';
+import { colors } from './colors';
+
+export const globalStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+
+  card: {
+    borderRadius: 16,
+    padding: 20,
+    backgroundColor: colors.surface,
+    elevation: 3,
+  },
+
+  title: {
+    textAlign: 'center',
+    marginBottom: 10,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+
+  input: {
+    marginBottom: 16,
+    marginTop: 8,
+    height: 56,         // recommended for outlined
+    backgroundColor: colors.inputBackground,
+  },
+
+  button: {
+    marginTop: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+
+  languageContainer: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    zIndex: 100,
+  },
+
+  centerText: {
+    textAlign: 'center',
+    color: colors.textSecondary,
+  },
+
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center' as const,
+    padding: 20,
+  },
+
+  mt10: { marginTop: 10 },
+  mt20: { marginTop: 20 },
+  mb10: { marginBottom: 10 },
+  mb20: { marginBottom: 20 },
+  pb20: { paddingBottom: 20 },
+});
+</file>
+
+<file path="style/onboardingStyle.ts">
+import { StyleSheet } from 'react-native';
+import { colors } from './colors';
+
+export const onboardingStyles = StyleSheet.create({
+  errorText: {
+    color: colors.error,
+    fontSize: 12,
+    marginTop: -10,
+    marginBottom: 10,
+    marginLeft: 4,
+  },
+
+  disabledInput: {
+    backgroundColor: colors.disabled,
+  },
+
+  rowButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+  },
+
+  halfButton: {
+    flex: 1,
+  },
+
+  spacingRight: {
+    marginRight: 10,
+  },
+});
+</file>
+
+<file path="eslint.config.js">
+// https://docs.expo.dev/guides/using-eslint/
+const { defineConfig } = require('eslint/config');
+const expoConfig = require('eslint-config-expo/flat');
+
+module.exports = defineConfig([
+  expoConfig,
+  {
+    ignores: ['dist/*'],
+  },
+]);
+</file>
+
+<file path="README.md">
+# Welcome to your Expo app 👋
+
+This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+
+## Get started
+
+1. Install dependencies
+
+   ```bash
+   npm install
+   ```
+
+2. Start the app
+
+   ```bash
+   npx expo start
+   ```
+
+In the output, you'll find options to open the app in a
+
+- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
+- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
+- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
+- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+
+You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+
+## Get a fresh project
+
+When you're ready, run:
+
+```bash
+npm run reset-project
+```
+
+This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+
+## Learn more
+
+To learn more about developing your project with Expo, look at the following resources:
+
+- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
+- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+
+## Join the community
+
+Join our community of developers creating universal apps.
+
+- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
+- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+</file>
+
+<file path="tsconfig.json">
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
+  ]
+}
+</file>
+
+<file path="app/index.tsx">
+import { doc, getDoc } from 'firebase/firestore';
+import React, { useState } from 'react';
+import FruitHome from '../components/fruitHome';
+import Login from '../components/login';
+import OnboardingScreen from '../components/onBoardingScreen';
+import { useUser } from '../context/UserContext'; // ✅
+import { db } from '../firebaseConfig';
+
+export default function Page() {
+  const { user, setUser } = useUser(); // ✅ GLOBAL
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+
+  const handleLoginSuccess = async (authUser: any) => {
+    try {
+      const userRef = doc(db, 'users', authUser.uid);
+      const userSnap = await getDoc(userRef);
+
+      if (userSnap.exists()) {
+        const firestoreData = userSnap.data();
+
+        if (firestoreData.isProfileComplete) {
+          setUser({ ...authUser, ...firestoreData });
+          setNeedsOnboarding(false);
+        } else {
+          setUser(authUser);
+          setNeedsOnboarding(true);
+        }
+      } else {
+        setUser(authUser);
+        setNeedsOnboarding(true);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleOnboardingComplete = async () => {
+    const userRef = doc(db, 'users', user.uid);
+    const userSnap = await getDoc(userRef);
+
+    if (userSnap.exists()) {
+      setUser({ ...user, ...userSnap.data() });
+    }
+
+    setNeedsOnboarding(false);
+  };
+
+  if (!user) {
+    return <Login onLogin={handleLoginSuccess} />;
+  }
+
+  if (needsOnboarding) {
+    return <OnboardingScreen onComplete={handleOnboardingComplete} user={user} />;
+  }
+
+  return <FruitHome onLogout={() => setUser(null)} />;
+}
+</file>
+
+<file path="components/addressModal.tsx">
+import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Keyboard, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import { Button, Modal, Portal, Text, TextInput } from 'react-native-paper';
+import { addressStyles, globalStyles, onboardingStyles } from '../style';
+import NeptiMapPicker from './mapPicker'; // 🟢 Import your new Map component
+
+interface AddressModalProps {
+  visible: boolean;
+  onDismiss: () => void;
+  onSave: (addressData: {
+    receiverName: string;
+    receiverPhone: string;
+    line1: string;
+    line2: string;
+    nearby: string;
+    city: string;
+    state: string;
+    coords?: { latitude: number; longitude: number }; // 🟢 Added for GPS storage
+  }) => void;
+  initialData: {
+    firstName: string;
+    lastName: string;
+    phone: string;
+  };
+}
+
+type FormErrors = {
+  fName: string;
+  lName: string;
+  phone: string;
+  line1: string;
+  line2: string;
+};
+
+type FormTouched = {
+  fName: boolean;
+  lName: boolean;
+  phone: boolean;
+  line1: boolean;
+  line2: boolean;
+};
+
+export default function AddressModal({
+  visible,
+  onDismiss,
+  onSave,
+  initialData,
+}: AddressModalProps) {
+  const { t } = useTranslation();
+
+  // ===== STATE =====
+  const [fName, setFName] = useState('');
+  const [lName, setLName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [line1, setLine1] = useState('');
+  const [line2, setLine2] = useState('');
+  const [nearby, setNearby] = useState('');
+  
+  // 🟢 Map specific states
+  const [showMap, setShowMap] = useState(false);
+  const [selectedCoords, setSelectedCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+
+  const [errors, setErrors] = useState<FormErrors>({
+    fName: '', lName: '', phone: '', line1: '', line2: '',
+  });
+
+  const [touched, setTouched] = useState<FormTouched>({
+    fName: false, lName: false, phone: false, line1: false, line2: false,
+  });
+
+  // ===== VALIDATION =====
+  const validate = (): FormErrors => {
+    const newErrors: FormErrors = { fName: '', lName: '', phone: '', line1: '', line2: '' };
+
+    if (!fName.trim()) newErrors.fName = t('name_required');
+    else if (!/^[A-Za-z\u0900-\u097F\s]+$/.test(fName)) newErrors.fName = t('only_letters');
+    else if (fName.trim().length < 2) newErrors.fName = t('min_2_characters');
+
+    if (!lName.trim()) newErrors.lName = t('name_required');
+    else if (!/^[A-Za-z\u0900-\u097F\s]+$/.test(lName)) newErrors.lName = t('only_letters');
+    else if (lName.trim().length < 2) newErrors.lName = t('min_2_characters');
+
+    if (!phone.trim()) newErrors.phone = t('phone_required');
+    else if (!/^[0-9]{10}$/.test(phone)) newErrors.phone = t('invalid_phone');
+
+    if (!line1.trim()) newErrors.line1 = t('address_line_1_required');
+    else if (line1.trim().length < 2) newErrors.line1 = t('address_line_1_min_5');
+
+    if (!line2.trim()) newErrors.line2 = t('address_line_2_required');
+    else if (line2.trim().length < 5) newErrors.line2 = t('address_line_2_min_5');
+
+    return newErrors;
+  };
+
+  const isFormValid = () => {
+    const validation = validate();
+    // 🟢 Form is valid ONLY if fields are correct AND a location is pinned
+    return Object.values(validation).every(err => err === '');
+  };
+
+  useEffect(() => {
+    if (visible) {
+      setFName(initialData.firstName || '');
+      setLName(initialData.lastName || '');
+      setPhone(initialData.phone.replace(/^\+91/, '') || '');
+      setLine1('');
+      setLine2('');
+      setNearby('');
+      setShowMap(false);
+      setSelectedCoords(null);
+      setErrors({ fName: '', lName: '', phone: '', line1: '', line2: '' });
+      setTouched({ fName: false, lName: false, phone: false, line1: false, line2: false });
+    }
+  }, [visible, initialData]);
+
+  // ===== HANDLERS =====
+  const handleChange = (field: keyof FormErrors | 'nearby', value: string) => {
+    switch (field) {
+      case 'fName': setFName(value); break;
+      case 'lName': setLName(value); break;
+      case 'phone': setPhone(value.replace(/\D/g, '')); break;
+      case 'line1': setLine1(value); break;
+      case 'line2': setLine2(value); break;
+      case 'nearby': setNearby(value); break;
+    }
+    if (field !== 'nearby') setErrors(prev => ({ ...prev, [field]: '' }));
+  };
+
+  const handleBlur = (field: keyof FormErrors) => {
+    const validation = validate();
+    setErrors(prev => ({ ...prev, [field]: validation[field] }));
+    setTouched(prev => ({ ...prev, [field]: true }));
+  };
+
+  const handleSave = () => {
+    const validation = validate();
+    setErrors(validation);
+    setTouched({ fName: true, lName: true, phone: true, line1: true, line2: true });
+
+    if (!Object.values(validation).every(e => e === '')) return;
+
+    onSave({
+      receiverName: `${fName.trim()} ${lName.trim()}`,
+      receiverPhone: phone,
+      line1: line1.trim(),
+      line2: line2.trim(),
+      nearby: nearby.trim(),
+      city: 'Ahilyanagar',
+      state: 'Maharashtra',
+      ...(selectedCoords ? { coords: selectedCoords } : {}),// 🟢 Send GPS data to Firestore
+    });
+
+    onDismiss();
+  };
+
+  return (
+    <Portal>
+      <Modal visible={visible} onDismiss={onDismiss} contentContainerStyle={addressStyles.modalContainer}>
+        <KeyboardAwareScrollView
+          enableOnAndroid
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={globalStyles.pb20}
+        >
+          <Text variant="titleLarge" style={addressStyles.modalTitle}>
+            {t('add_delivery_address')}
+          </Text>
+          
+          <Button 
+            icon={selectedCoords ? "check-circle" : "map-marker-radius"} 
+            mode="outlined" 
+            onPress={() => {
+              Keyboard.dismiss();
+              setShowMap(true)}
+            }
+            style={globalStyles.mb20}
+          >
+            {selectedCoords ? t('location_pinned') : t('select_exact_location')}
+          </Button>
+
+          {/* Full Screen Overlay */}
+          <NeptiMapPicker 
+            visible={showMap}
+            onCancel={() => setShowMap(false)}
+            onLocationSelected={(coords: any) => {
+              setSelectedCoords(coords);
+              setShowMap(false);
+            }}
+          />
+
+          {/* First + Last */}
+          <View style={addressStyles.nameRow}>
+            <View style={addressStyles.nameField}>
+              <TextInput
+                label={`${t('first_name')} *`}
+                value={fName}
+                onChangeText={(t) => handleChange('fName', t)}
+                onBlur={() => handleBlur('fName')}
+                mode="flat"
+                style={globalStyles.input}
+                error={touched.fName && !!errors.fName}
+              />
+              {touched.fName && !!errors.fName && <Text style={onboardingStyles.errorText}>{errors.fName}</Text>}
+            </View>
+
+            <View style={addressStyles.nameField}>
+              <TextInput
+                label={`${t('last_name')} *`}
+                value={lName}
+                onChangeText={(t) => handleChange('lName', t)}
+                onBlur={() => handleBlur('lName')}
+                mode="flat"
+                style={globalStyles.input}
+                error={touched.lName && !!errors.lName}
+              />
+              {touched.lName && !!errors.lName && <Text style={onboardingStyles.errorText}>{errors.lName}</Text>}
+            </View>
+          </View>
+
+          {/* Phone */}
+          <TextInput
+            label={`${t('mobile')} *`}
+            value={phone}
+            onChangeText={(t) => handleChange('phone', t)}
+            onBlur={() => handleBlur('phone')}
+            keyboardType="phone-pad"
+            mode="flat"
+            style={globalStyles.input}
+            error={touched.phone && !!errors.phone}
+          />
+          {touched.phone && !!errors.phone && <Text style={onboardingStyles.errorText}>{errors.phone}</Text>}
+
+          {/* Address Line 1 */}
+          <TextInput
+            label={`${t('address_line_1')} *`}
+            value={line1}
+            onChangeText={(t) => handleChange('line1', t)}
+            onBlur={() => handleBlur('line1')}
+            mode="flat"
+            style={globalStyles.input}
+            error={touched.line1 && !!errors.line1}
+          />
+          {touched.line1 && !!errors.line1 && <Text style={onboardingStyles.errorText}>{errors.line1}</Text>}
+
+          {/* Address Line 2 */}
+          <TextInput
+            label={`${t('address_line_2')} *`}
+            value={line2}
+            onChangeText={(t) => handleChange('line2', t)}
+            onBlur={() => handleBlur('line2')}
+            mode="flat"
+            style={globalStyles.input}
+            error={touched.line2 && !!errors.line2}
+          />
+          {touched.line2 && !!errors.line2 && <Text style={onboardingStyles.errorText}>{errors.line2}</Text>}
+
+          {/* Nearby */}
+          <TextInput
+            label={t('nearby_optional')}
+            value={nearby}
+            onChangeText={(t) => handleChange('nearby', t)}
+            mode="flat"
+            style={globalStyles.input}
+          />
+
+          {/* City + State */}
+          <View style={addressStyles.cityStateRow}>
+            <TextInput label={`${t('city')} *`} value="Ahilyanagar" disabled style={addressStyles.nameField} />
+            <TextInput label={`${t('state')} *`} value="Maharashtra" disabled style={addressStyles.nameField} />
+          </View>
+
+          {/* Buttons */}
+          <View style={addressStyles.row}>
+            <Button mode="outlined" onPress={onDismiss} style={addressStyles.cancelButton}>
+              {t('cancel')}
+            </Button>
+            <Button 
+              mode="contained" 
+              onPress={handleSave} 
+              disabled={!isFormValid()} 
+              style={addressStyles.saveButton}
+            >
+              {t('save_address')}
+            </Button>
+          </View>
+        </KeyboardAwareScrollView>
+      </Modal>
+    </Portal>
+  );
+}
+</file>
+
+<file path="components/fruitHome.tsx">
+import { useRouter } from 'expo-router';
+import { ShoppingBasket } from 'lucide-react-native';
+import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import {
+  Dimensions,
+  SafeAreaView,
+  StyleSheet,
+  TouchableWithoutFeedback,
+  View,
+} from 'react-native';
+import { Appbar, Avatar, Divider, Drawer, IconButton, Text } from 'react-native-paper';
+import { useUser } from '../context/UserContext';
+
+const { width } = Dimensions.get('window');
+
+interface HomeProps {
+  onLogout: () => void;
+}
+
+export default function FruitHome({ onLogout }: HomeProps) {
+  const router = useRouter();
+  const { user } = useUser();
+  const { t } = useTranslation();
+  const [drawerVisible, setDrawerVisible] = useState(false);
+
+  const toggleDrawer = () => setDrawerVisible(!drawerVisible);
+
+  // Get first character of First Name safely
+  const firstInitial = (user?.firstName?.charAt(0)?.toUpperCase() || 'U').toString();
+
+  // Safe translation helper with fallback
+  const tr = (key: string, fallback: string) => t(key) || fallback;
+
+  return (
+    <SafeAreaView style={styles.container}>
+      {/* HEADER */}
+      <Appbar.Header style={{ backgroundColor: '#fff', elevation: 2 }}>
+        <Appbar.Action icon="menu" onPress={toggleDrawer} />
+        <Appbar.Content
+          title={tr('market_yard_door', 'Market Yard Door')}
+          titleStyle={{ fontWeight: 'bold' }}
+        />
+        <Appbar.Action
+          icon={() => <ShoppingBasket size={24} color="black" />}
+          onPress={() => {}}
+        />
+      </Appbar.Header>
+
+      {/* TODO: FlatList / main content goes here */}
+
+      {/* SIDEBAR MENU */}
+      {drawerVisible && (
+        <View style={StyleSheet.absoluteFill}>
+          <TouchableWithoutFeedback onPress={toggleDrawer}>
+            <View style={styles.backdrop} />
+          </TouchableWithoutFeedback>
+
+          <View style={styles.drawerContainer}>
+            {/* TOP SECTION: Profile + Close Button */}
+            <View style={styles.drawerHeader}>
+              <View style={styles.userInfoSection}>
+                <Avatar.Text
+                  size={50}
+                  label={firstInitial}
+                  style={{ backgroundColor: '#2e7d32' }}
+                  labelStyle={{ fontWeight: 'bold' }}
+                />
+                <View style={{ marginLeft: 12, flex: 1 }}>
+                  <Text variant="titleMedium" style={{ fontWeight: 'bold' }}>
+                    {`${user?.firstName || ''} ${user?.lastName || ''}`.trim()}
+                  </Text>
+                  <Text variant="bodySmall" style={{ color: 'gray' }}>
+                    +91 {user?.phoneNumber?.slice(-10) || 'XXXXXXXXXX'}
+                  </Text>
+                </View>
+                <IconButton icon="close" size={24} onPress={toggleDrawer} />
+              </View>
+            </View>
+
+            <Divider />
+
+            {/* NAVIGATION ITEMS */}
+            <View style={{ flex: 1, marginTop: 10 }}>
+              <Drawer.Item
+                icon="account-edit"
+                label={tr('edit_profile', 'Edit Profile')}
+                onPress={() => {
+                  toggleDrawer();
+                  router.push('/EditProfile');
+                }}
+              />
+              <Drawer.Item
+                icon="translate"
+                label={tr('language', 'Language')}
+                onPress={() => {
+                  toggleDrawer();
+                }}
+              />
+              <Drawer.Item
+                icon="map-marker-radius"
+                label={tr('manage_address', 'Manage Address')}
+                onPress={() => {
+                  toggleDrawer();
+                  // router.push('/ManageAddress'); // Uncomment if route exists
+                }}
+              />
+            </View>
+
+            {/* LOGOUT */}
+            <View style={styles.drawerBottom}>
+              <Divider />
+              <Drawer.Item
+                icon="logout"
+                label={tr('logout', 'Logout')}
+                onPress={() => {
+                  toggleDrawer();
+                  onLogout();
+                }}
+                style={styles.logoutItem}
+              />
+            </View>
+          </View>
+        </View>
+      )}
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#f5f5f5' },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  drawerContainer: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: width * 0.8,
+    backgroundColor: 'white',
+    elevation: 16,
+    flexDirection: 'column',
+  },
+  drawerHeader: {
+    paddingTop: 50,
+    paddingBottom: 20,
+    paddingHorizontal: 15,
+  },
+  userInfoSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  drawerBottom: {
+    marginBottom: 20,
+  },
+  logoutItem: {
+    marginTop: 10,
+  },
+});
+</file>
+
+<file path="components/login.tsx">
+import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
+import * as Localization from 'expo-localization';
+import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import {
+  Alert,
+  Keyboard,
+  View
+} from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import {
+  Button,
+  Divider,
+  Menu,
+  Surface,
+  Text,
+  TextInput,
+} from 'react-native-paper';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import LoadingOverlay from '../components/loadingOverlay';
+import i18n from '../config/i18n';
+import { auth } from '../firebaseConfig';
+import { useAuth } from '../hooks/useAuth';
+import { globalStyles } from '../style/globalStyle';
+
+const PHONE_LENGTH = 10;
+const OTP_LENGTH = 6;
+const OTP_TIMER = 60;
+// const SKIP_OTP = __DEV__;
+const SKIP_OTP = false;
+interface LoginProps {
+  onLogin: (user: any) => void;
+}
+
+export default function Login({ onLogin }: LoginProps) {
+  const { t } = useTranslation();
+  const recaptchaVerifier = useRef<any>(null);
+  const { sendOtp, verifyOtp } = useAuth();
+
+  // 🌐 Language
+  const deviceLocale = Localization.getLocales()[0]?.languageTag ?? 'en';
+  const deviceLang: 'en' | 'mr' =
+    ['en', 'mr'].includes(deviceLocale.split('-')[0])
+      ? (deviceLocale.split('-')[0] as 'en' | 'mr')
+      : 'en';
+
+  const [language, setLanguage] = useState<'en' | 'mr'>(deviceLang);
+  const [menuVisible, setMenuVisible] = useState(false);
+
+  const changeLanguage = (lng: 'en' | 'mr') => {
+    i18n.changeLanguage(lng);
+    setLanguage(lng);
+    setMenuVisible(false);
+  };
+
+  // ===== STATE =====
+  const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState('');
+  const [step, setStep] = useState<1 | 2>(1);
+  const [verificationId, setVerificationId] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [showOtp, setShowOtp] = useState(false);
+  const [timer, setTimer] = useState(0);
+
+  const isValidPhone = phone.length === PHONE_LENGTH;
+  const isValidOtp = otp.length === OTP_LENGTH;
+
+  // ===== TIMER =====
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+
+    if (timer > 0) {
+      interval = setInterval(() => {
+        setTimer((prev) => prev - 1);
+      }, 1000);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [timer]);
+
+  // ===== INPUT HANDLERS =====
+  const handlePhoneChange = (value: string) => {
+    const cleaned = value.replace(/\D/g, '').trim();
+    setPhone(cleaned);
+
+    if (cleaned.length === PHONE_LENGTH) {
+      Keyboard.dismiss();
+    }
+  };
+
+  const handleOtpChange = (value: string) => {
+    const cleaned = value.replace(/\D/g, '');
+    setOtp(cleaned);
+
+    if (cleaned.length === OTP_LENGTH) {
+      Keyboard.dismiss();
+    }
+  };
+
+  // ===== ACTIONS =====
+  const handleSendOTP = async () => {
+    if (loading || timer > 0) return;
+
+    Keyboard.dismiss();
+
+    if (!isValidPhone) {
+      Alert.alert(t('error'), t('invalid_number'));
+      return;
+    }
+
+    try {
+      setLoading(true);
+      if (SKIP_OTP) {
+        // fake login user
+        onLogin({
+          uid: '6rHUoW1eSBYKJOJ05gRpoDBEtzz1',
+          phoneNumber: '+919421266124',
+        });
+        return;
+      }
+      const vid = await sendOtp(phone, recaptchaVerifier.current);
+
+      setVerificationId(vid);
+      setStep(2);
+      setTimer(OTP_TIMER);
+
+      Alert.alert(t('success'), t('otp_sent'));
+
+      if (__DEV__) console.log('OTP sent:', phone);
+    } catch (err: any) {
+      console.log('Send OTP Error:', err);
+      Alert.alert(t('error'), t('something_went_wrong'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOTP = async (otpValue?: string) => {
+    if (loading) return;
+
+    Keyboard.dismiss();
+
+    const finalOtp = (otpValue ?? otp).trim();
+
+    if (finalOtp.length !== OTP_LENGTH) {
+      Alert.alert(t('error'), t('invalid_otp'));
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const user = await verifyOtp(verificationId, finalOtp);
+
+      if (__DEV__) console.log('User verified:', user.uid);
+
+      onLogin(user);
+    } catch (err: any) {
+      console.log('Verify OTP Error:', err);
+
+      if (err.code === 'auth/invalid-verification-code') {
+        Alert.alert(t('error'), t('otp_invalid'));
+      } else {
+        Alert.alert(t('error'), t('something_went_wrong'));
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChangeNumber = () => {
+    setStep(1);
+    setOtp('');
+    setVerificationId('');
+    setTimer(0);
+  };
+
+  // ===== UI =====
+  return (
+    <SafeAreaView style={{ flex: 1 }}>
+      <KeyboardAwareScrollView
+        contentContainerStyle={[globalStyles.scrollContent, { paddingTop: 60 }]}
+        enableOnAndroid
+        extraScrollHeight={60}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <FirebaseRecaptchaVerifierModal
+          ref={recaptchaVerifier}
+          firebaseConfig={auth.app.options}
+        />
+
+        {/* 🌐 Language */}
+        <View style={globalStyles.languageContainer}>
+          <Menu
+            visible={menuVisible}
+            onDismiss={() => setMenuVisible(false)}
+            anchor={
+              <Button mode="outlined" onPress={() => setMenuVisible(true)}>
+                {language === 'en' ? 'English' : 'मराठी'}
+              </Button>
+            }
+          >
+            <Menu.Item onPress={() => changeLanguage('en')} title="English" />
+            <Divider />
+            <Menu.Item onPress={() => changeLanguage('mr')} title="मराठी" />
+          </Menu>
+        </View>
+
+        <Surface style={globalStyles.card} elevation={3}>
+          <Text variant="headlineMedium" style={globalStyles.title}>
+            {t('title')}
+          </Text>
+
+          <Text style={[globalStyles.centerText, globalStyles.mb20]}>
+            {t('subtitle')}
+          </Text>
+
+          {/* PHONE INPUT */}
+          <TextInput
+            label={t('mobile')}
+            value={phone}
+            onChangeText={handlePhoneChange}
+            left={<TextInput.Affix text="+91 " />}
+            mode="flat"
+            keyboardType="phone-pad"
+            maxLength={PHONE_LENGTH}
+            disabled={step === 2 || loading}
+            style={globalStyles.input}
+            returnKeyType="done"
+            onSubmitEditing={handleSendOTP}
+          />
+
+          {/* OTP INPUT */}
+          {step === 2 && (
+            <TextInput
+              label={t('otp')}
+              value={otp}
+              onChangeText={handleOtpChange}
+              mode="flat"
+              keyboardType="number-pad"
+              maxLength={OTP_LENGTH}
+              secureTextEntry={!showOtp}
+              style={globalStyles.input}
+              returnKeyType="done"
+              onSubmitEditing={() => handleVerifyOTP()}
+              textContentType="oneTimeCode"
+              autoComplete="sms-otp"
+              right={
+                <TextInput.Icon
+                  icon={showOtp ? 'eye-off' : 'eye'}
+                  onPress={() => setShowOtp(!showOtp)}
+                />
+              }
+            />
+          )}
+
+          {/* BUTTONS */}
+          <View style={globalStyles.mt20}>
+            <Button
+              mode="contained"
+              onPress={step === 1 ? handleSendOTP : () => handleVerifyOTP()}
+              disabled={loading}
+              style={globalStyles.button}
+            >
+              {step === 1 ? t('send_otp') : t('verify_login')}
+            </Button>
+
+            {step === 2 && !loading && (
+              <View style={{ marginTop: 10 }}>
+                <Button
+                  onPress={handleSendOTP}
+                  disabled={timer > 0}
+                  mode="text"
+                  style={globalStyles.mb10}
+                >
+                  {timer > 0
+                    ? t('resend_timer', { time: timer })
+                    : t('resend')}
+                </Button>
+
+                <Button onPress={handleChangeNumber} mode="text">
+                  {t('change_number')}
+                </Button>
+              </View>
+            )}
+          </View>
+        </Surface>
+      </KeyboardAwareScrollView>
+
+      {/* FULL SCREEN LOADER */}
+      {loading && <LoadingOverlay />}
+    </SafeAreaView>
+  );
+}
+</file>
+
+<file path="components/mapPicker.tsx">
+import * as Location from 'expo-location';
+import { isPointInPolygon } from 'geolib';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { View } from 'react-native';
+import MapView, { Polygon, PROVIDER_GOOGLE } from 'react-native-maps';
+import { Button, IconButton, Modal, Portal, Text } from 'react-native-paper';
+import { NEPTI_BOUNDARY } from '../constants/deliveryZone';
+import { addressStyles, colors, globalStyles } from '../style';
+
+const DEFAULT_LOC = {
+  latitude: 19.0961,
+  longitude: 74.7196,
+  latitudeDelta: 0.01,
+  longitudeDelta: 0.01,
+};
+
+export default function NeptiMapPicker({ visible, onLocationSelected, onCancel }: any) {
+  const { t } = useTranslation();
+
+  const [region, setRegion] = useState(DEFAULT_LOC);
+  const [isInside, setIsInside] = useState(true);
+  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationPermissionStatus, setLocationPermissionStatus] = useState<'granted' | 'denied' | 'undetermined'>('undetermined');
+
+  const bounds = useMemo(() => {
+    let minLat = NEPTI_BOUNDARY[0].latitude;
+    let maxLat = NEPTI_BOUNDARY[0].latitude;
+    let minLng = NEPTI_BOUNDARY[0].longitude;
+    let maxLng = NEPTI_BOUNDARY[0].longitude;
+
+    NEPTI_BOUNDARY.forEach(p => {
+      minLat = Math.min(minLat, p.latitude);
+      maxLat = Math.max(maxLat, p.latitude);
+      minLng = Math.min(minLng, p.longitude);
+      maxLng = Math.max(maxLng, p.longitude);
+    });
+
+    return { minLat, maxLat, minLng, maxLng };
+  }, []);
+
+  const getBoundaryRegion = () => ({
+    latitude: (bounds.minLat + bounds.maxLat) / 2,
+    longitude: (bounds.minLng + bounds.maxLng) / 2,
+    latitudeDelta: (bounds.maxLat - bounds.minLat) * 1.5,
+    longitudeDelta: (bounds.maxLng - bounds.minLng) * 1.5,
+  });
+
+  const getClampedRegion = (newRegion: any) => {
+    const LAT_MARGIN = 0.002;
+    const LNG_MARGIN = 0.002;
+
+    return {
+      ...newRegion,
+      latitude: Math.min(
+        Math.max(newRegion.latitude, bounds.minLat - LAT_MARGIN),
+        bounds.maxLat + LAT_MARGIN
+      ),
+      longitude: Math.min(
+        Math.max(newRegion.longitude, bounds.minLng - LNG_MARGIN),
+        bounds.maxLng + LNG_MARGIN
+      ),
+    };
+  };
+
+  useEffect(() => {
+    if (visible) {
+      setRegion(DEFAULT_LOC);
+
+      (async () => {
+        try {
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          setLocationPermissionStatus(status === 'granted' ? 'granted' : 'denied');
+
+          if (status !== 'granted') return;
+
+          const loc = await Location.getCurrentPositionAsync({});
+          const userCoords = {
+            latitude: loc.coords.latitude,
+            longitude: loc.coords.longitude,
+          };
+
+          setUserLocation(userCoords);
+
+          if (isPointInPolygon(userCoords, NEPTI_BOUNDARY)) {
+            setRegion({ ...userCoords, latitudeDelta: 0.005, longitudeDelta: 0.005 });
+            setIsInside(true);
+          } else {
+            setRegion(getBoundaryRegion());
+            setIsInside(false);
+          }
+        } catch (e) {
+          console.log('Location error ignored:', e);
+        }
+      })();
+    }
+  }, [visible]);
+
+  const handleRegionChange = (newRegion: any) => {
+    const clamped = getClampedRegion(newRegion);
+    setRegion(clamped);
+
+    const inside = isPointInPolygon(
+      { latitude: clamped.latitude, longitude: clamped.longitude },
+      NEPTI_BOUNDARY
+    );
+    setIsInside(inside);
+  };
+
+  const handleUseCurrentLocation = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      setLocationPermissionStatus(status === 'granted' ? 'granted' : 'denied');
+
+      if (status !== 'granted') return;
+
+      const loc = await Location.getCurrentPositionAsync({});
+      const userCoords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+      setUserLocation(userCoords);
+
+      setRegion({ ...userCoords, latitudeDelta: 0.005, longitudeDelta: 0.005 });
+      setIsInside(isPointInPolygon(userCoords, NEPTI_BOUNDARY));
+    } catch (e) {
+      console.log('Error fetching location', e);
+    }
+  };
+
+  const isUseCurrentLocationDisabled = () => {
+    if (!userLocation) return false; // Initially enabled
+    if (!isPointInPolygon(userLocation, NEPTI_BOUNDARY)) return true; // outside serviceable
+    if (region.latitude === userLocation.latitude && region.longitude === userLocation.longitude && isInside)
+      return true; // pin at user location inside
+    return false;
+  };
+
+  return (
+    <Portal>
+      <Modal visible={visible} onDismiss={onCancel} contentContainerStyle={addressStyles.fullScreen}>
+      <View style={globalStyles.container}>
+          <MapView
+            provider={PROVIDER_GOOGLE}
+            style={addressStyles.map}
+            mapType="hybrid"
+            region={region}
+            onRegionChangeComplete={handleRegionChange}
+            minZoomLevel={14}
+            maxZoomLevel={20}
+          >
+            {!isInside && (
+              <Polygon
+                coordinates={[
+                  { latitude: bounds.minLat - 1, longitude: bounds.minLng - 1 },
+                  { latitude: bounds.minLat - 1, longitude: bounds.maxLng + 1 },
+                  { latitude: bounds.maxLat + 1, longitude: bounds.maxLng + 1 },
+                  { latitude: bounds.maxLat + 1, longitude: bounds.minLng - 1 },
+                ]}
+                holes={[NEPTI_BOUNDARY]}
+                fillColor="rgba(255,0,0,0.2)"
+              />
+            )}
+            <Polygon
+              coordinates={NEPTI_BOUNDARY}
+              fillColor="rgba(46, 125, 50, 0.3)"
+              strokeColor="#2e7d32"
+              strokeWidth={2}
+            />
+          </MapView>
+
+          <View style={addressStyles.markerFixed} pointerEvents="none">
+            <IconButton icon="map-marker" size={40} iconColor={isInside ? colors.success : colors.errorText} />
+          </View>
+
+          <View style={addressStyles.topBar}>
+            <IconButton icon="close" containerColor="white" onPress={onCancel} />
+            <Text variant="titleMedium" style={addressStyles.statusText}>
+              {isInside ? t('drag_to_pin') : t('outside_area')}
+            </Text>
+          </View>
+
+          <View style={addressStyles.footer}>
+          <Text style={[globalStyles.centerText, globalStyles.mb10]}>
+              {isInside
+                ? t('delivery_available')
+                : t('delivery_unavailable')}
+            </Text>
+
+            <Button
+              mode="outlined"
+              style={globalStyles.mb10}
+              disabled={isUseCurrentLocationDisabled()}
+              onPress={handleUseCurrentLocation}
+            >
+              {t('use_current_location')}
+            </Button>
+
+            <Button
+              mode="contained"
+              disabled={!isInside}
+              style={isInside ? addressStyles.confirmButton : addressStyles.confirmButtonDisabled}
+              onPress={() =>
+                onLocationSelected({
+                  latitude: region.latitude,
+                  longitude: region.longitude,
+                })
+              }
+            >
+              {t('confirm_location')}
+            </Button>
+          </View>
+        </View>
+      </Modal>
+    </Portal>
+  );
+}
+</file>
+
+<file path="components/onBoardingScreen.tsx">
+import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Alert, Keyboard, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import { Button, Surface, Text, TextInput } from 'react-native-paper';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import AddressModal from '../components/addressModal';
+import InputField from '../components/InputField';
+import LoadingOverlay from '../components/loadingOverlay';
+import { Field, useProfileForm } from '../services/useProfileForm';
+import { updateUserProfile } from '../services/userService';
+import { globalStyles, onboardingStyles } from '../style';
+
+interface Props {
+  user: any;
+  onComplete: () => void;
+}
+
+export default function OnboardingScreen({ user, onComplete }: Props) {
+  const { t } = useTranslation();
+
+  const [loading, setLoading] = useState(false);
+  const [addressModalVisible, setAddressModalVisible] = useState(false);
+  const [savedAddress, setSavedAddress] = useState<any>(null);
+
+  // ── Validation ────────────────────────────────────────────────────────────
+  const validate = (field: Field, value: string) => {
+    const trimmed = value.trim();
+
+    if (field === 'firstName' || field === 'lastName') {
+      if (!trimmed) return t('name_required');
+      if (!/^[A-Za-z\u0900-\u097F\s]+$/.test(trimmed)) return t('only_letters');
+      if (trimmed.length < 2) return t('min_2_characters');
+    }
+    if (field === 'email') {
+      if (trimmed && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return t('invalid_email');
+    }
+    return '';
+  };
+
+  const { values, errors, touched, handleChange, handleBlur, isFormValid } = useProfileForm({
+    initialValues: { firstName: '', lastName: '', email: '' },
+    validate,
+  });
+
+  // ── Save ──────────────────────────────────────────────────────────────────
+  const handleSaveProfile = async () => {
+    if (loading) return;
+
+    Keyboard.dismiss();
+    Object.keys(values).forEach(f => handleBlur(f as Field));
+
+    if (!isFormValid()) return;
+
+    if (!savedAddress) {
+      Alert.alert(t('address_required_title'), t('address_required_msg'));
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await updateUserProfile(user.uid, {
+        firstName: values.firstName.trim(),
+        lastName: values.lastName.trim(),
+        email: values.email.trim(),
+        savedAddress,
+        isProfileComplete: true,
+      });
+      onComplete();
+    } catch {
+      Alert.alert(t('error'), t('something_went_wrong'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <SafeAreaView style={globalStyles.container}>
+      <KeyboardAwareScrollView
+        contentContainerStyle={globalStyles.scrollContent}
+        enableOnAndroid
+        extraScrollHeight={40}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Surface style={globalStyles.card} elevation={3}>
+          <Text variant="headlineMedium" style={globalStyles.title}>
+            {t('complete_profile')}
+          </Text>
+
+          {/* First Name */}
+          <InputField
+            label={`${t('first_name')} *`}
+            value={values.firstName}
+            error={errors.firstName}
+            touched={touched.firstName}
+            onChange={text => handleChange('firstName', text)}
+            onBlur={() => handleBlur('firstName')}
+          />
+
+          {/* Last Name */}
+          <InputField
+            label={`${t('last_name')} *`}
+            value={values.lastName}
+            error={errors.lastName}
+            touched={touched.lastName}
+            onChange={text => handleChange('lastName', text)}
+            onBlur={() => handleBlur('lastName')}
+          />
+
+          {/* Phone — read only, same as old version */}
+          <TextInput
+            label={t('mobile')}
+            value={user?.phoneNumber?.replace(/^\+91/, '') || ''}
+            mode="flat"
+            disabled
+            style={[globalStyles.input, onboardingStyles.disabledInput]}
+          />
+
+          {/* Email */}
+          <InputField
+            label={t('email')}
+            value={values.email}
+            error={errors.email}
+            touched={touched.email}
+            onChange={text => handleChange('email', text)}
+            onBlur={() => handleBlur('email')}
+          />
+
+          {/* Buttons */}
+          <View style={onboardingStyles.rowButtons}>
+            <Button
+              mode={savedAddress ? 'contained-tonal' : 'outlined'}
+              onPress={() => setAddressModalVisible(true)}
+              disabled={!isFormValid()}
+              style={[onboardingStyles.halfButton, onboardingStyles.spacingRight]}
+            >
+              {savedAddress ? t('address_added') : t('add_address')}
+            </Button>
+
+            <Button
+              mode="contained"
+              onPress={handleSaveProfile}
+              disabled={loading || !isFormValid()}
+              style={onboardingStyles.halfButton}
+            >
+              {t('save')}
+            </Button>
+          </View>
+        </Surface>
+      </KeyboardAwareScrollView>
+
+      <AddressModal
+        visible={addressModalVisible}
+        onDismiss={() => setAddressModalVisible(false)}
+        onSave={setSavedAddress}
+        initialData={{
+          firstName: values.firstName,
+          lastName: values.lastName,
+          phone: user?.phoneNumber || '',
+        }}
+      />
+
+      {loading && <LoadingOverlay />}
+    </SafeAreaView>
+  );
+}
+</file>
+
+<file path="locales/en.json">
+{
+  "title": "Market Yard Door",
+  "subtitle": "Enter your mobile number",
+  "mobile": "Mobile Number",
+  "otp": "6-Digit OTP",
+  "send_otp": "Send OTP",
+  "verify_login": "Verify & Login",
+  "resend": "Resend OTP",
+  "resend_timer": "Resend OTP in {{time}}s",
+  "change_number": "Change Phone Number",
+  "invalid_number": "Enter valid 10-digit number",
+  "invalid_otp": "Enter 6-digit OTP",
+  "otp_sent": "OTP sent successfully",
+  "otp_failed": "Failed to send OTP",
+  "otp_invalid": "Invalid OTP",
+  "complete_profile": "Complete Your Profile",
+  "first_name": "First Name",
+  "last_name": "Last Name",
+  "email": "Email Address",
+  "add_address": "Add Address",
+  "save": "Save",
+  "name_required": "Please enter your full name",
+  "only_letters": "Only letters are allowed",
+  "min_2_characters": "Minimum 2 characters required",
+  "invalid_email": "Invalid email address",
+  "add_delivery_address": "Delivery Address",
+  "address_line_1": "Flat / House No.",
+  "address_line_2": "Street / Locality",
+  "nearby_optional": "Landmark (Optional)",
+  "city": "City",
+  "state": "State",
+  "save_address": "Confirm Address",
+  "address_added": "Address Added",
+  "cancel": "Cancel",
+  "address_line_1_required": "Address line 1 is required",
+  "address_line_1_min_5": "Minimum 2 characters required",
+  "address_line_2_required": "Address line 2 is required",
+  "address_line_2_min_5": "Minimum 5 characters required",
+  "select_exact_location": "Select Exact Location",
+  "drag_to_pin":"Drag to Pin",
+  "confirm_location":"Confirm Location",
+  "outside_area": "Outside Area",
+  "location_pinned": "Location Pinned Successfully",
+  "use_current_location": "Use Current Location",
+  "delivery_available": "✅ Delivery available",
+  "delivery_unavailable": "❌ We don’t deliver here yet",
+  "edit_profile": "Edit Profile",
+  "language": "Change Language",
+  "manage_address": "Manage Address",
+  "logout": "Logout",
+  "success": "Success",
+"verified": "Verified",
+"phone_required": "Mobile number is required",
+"phone_already_registered": "This number is already linked to another account",
+"email_already_exists": "Email already exists",
+"recaptcha_not_ready": "Please try again",
+"error": "Error"
+}
+</file>
+
+<file path="locales/mr.json">
+{
+  "title": "मार्केट यार्ड डोअर",
+  "subtitle": "तुमचा मोबाईल नंबर टाका",
+  "mobile": "मोबाईल नंबर",
+  "otp": "६ अंकी OTP",
+  "send_otp": "OTP पाठवा",
+  "verify_login": "तपासा आणि लॉगिन करा",
+  "resend": "OTP पुन्हा पाठवा",
+  "resend_timer": "{{time}} सेकंदात OTP पुन्हा पाठवा",
+  "change_number": "नंबर बदला",
+  "invalid_number": "योग्य १० अंकी नंबर टाका",
+  "invalid_otp": "६ अंकी OTP टाका",
+  "otp_sent": "OTP यशस्वीरित्या पाठवला",
+  "otp_failed": "OTP पाठवण्यात अयशस्वी",
+  "otp_invalid": "चुकीचा OTP",
+  "complete_profile": "तुमची माहिती पूर्ण करा",
+  "first_name": "पहिले नाव",
+  "last_name": "आडनाव",
+  "email": "ईमेल पत्ता",
+  "add_address": "पत्ता जोडा",
+  "save": "जतन करा",
+  "name_required": "कृपया तुमचे पूर्ण नाव प्रविष्ट करा",
+  "only_letters": "फक्त अक्षरे परवानगी आहेत",
+  "min_2_characters": "किमान २ अक्षरे आवश्यक आहेत",
+  "invalid_email": "अवैध ईमेल पत्ता",
+  "add_delivery_address": "वितरण पत्ता",
+  "address_line_1": "घर क्रमांक / इमारत",
+  "address_line_2": "रस्ता / परिसर",
+  "nearby_optional": "जवळचे ठिकाण (पर्यायी)",
+  "city": "शहर",
+  "state": "राज्य",
+  "save_address": "पत्ता निश्चित करा",
+  "address_added": "पत्ता जोडला",
+  "cancel": "रद्द करा",
+  "address_line_1_required": "पत्ता ओळ 1 आवश्यक आहे",
+  "address_line_1_min_5": "किमान 2 अक्षरे आवश्यक",
+  "address_line_2_required": "पत्ता ओळ 2 आवश्यक आहे",
+  "address_line_2_min_5": "किमान 5 अक्षरे आवश्यक",
+  "select_exact_location": "अचूक स्थान निवडा",
+  "drag_to_pin": "स्थान निवडण्यासाठी नकाशा हलवा",
+  "confirm_location": "स्थान निश्चित करा",
+  "outside_area": "सेवा क्षेत्राबाहेर",
+  "location_pinned": "स्थान यशस्वीरित्या निश्चित केले",
+  "use_current_location": "सध्याचे स्थान वापरा",
+  "delivery_available": "✅ वितरण उपलब्ध",
+  "delivery_unavailable": "❌ आम्ही येथे वितरण करत नाही",
+  "edit_profile": "प्रोफाईल बदला",
+  "language": "भाषा बदला",
+  "manage_address": "पत्ता व्यवस्थापित करा",
+  "logout": "बाहेर पडा",
+  "success": "यशस्वी",
+"verified": "सत्यापित",
+"phone_required": "मोबाईल नंबर आवश्यक आहे",
+"phone_already_registered": "हा नंबर दुसऱ्या खात्याशी जोडलेला आहे",
+"email_already_exists": "ईमेल आधीच अस्तित्वात आहे",
+"recaptcha_not_ready": "कृपया पुन्हा प्रयत्न करा",
+"error": "त्रुटी"
+}
+</file>
+
+<file path="services/userService.ts">
+import { collection, doc, getDocs, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
+
+// 1. Address Structure
+export interface AddressData {
+  receiverName: string;
+  receiverPhone: string;
+  line1: string;
+  line2: string;
+  nearby?: string;
+  city: string;
+  state: string;
+}
+
+// 2. Profile Data Interface ✅ FIXED
+export interface UpdateProfileData {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phoneNumber?: string; // ✅ ADDED (IMPORTANT FIX)
+  isProfileComplete?: boolean;
+  savedAddress?: AddressData;
+  updatedAt?: any;
+}
+
+/**
+ * Update user profile
+ */
+export const updateUserProfile = async (
+  uid: string,
+  data: UpdateProfileData
+) => {
+  if (!uid) throw new Error('User ID is required');
+
+  const userRef = doc(db, 'users', uid);
+
+  try {
+    await updateDoc(userRef, {
+      ...data,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error('Error updating user profile:', error);
+    throw error;
+  }
+};
+
+/**
+ * Check if email/phone already exists (excluding current user)
+ */
+export const checkIfUserExists = async (
+  field: 'email' | 'phoneNumber',
+  value: string,
+  currentUid: string
+) => {
+  const q = query(collection(db, 'users'), where(field, '==', value));
+  const snapshot = await getDocs(q);
+
+  let exists = false;
+
+  snapshot.forEach(docSnap => {
+    if (docSnap.id !== currentUid) {
+      exists = true;
+    }
+  });
+
+  return exists;
+};
+</file>
+
+<file path="style/addressStyle.ts">
+import { StyleSheet } from 'react-native';
+import { colors } from './colors';
+
+export const addressStyles = StyleSheet.create({
+  modalContainer: {
+    backgroundColor: 'white',
+    padding: 20,
+    margin: 20,
+    borderRadius: 8,
+    maxHeight: '85%',
+  },
+  modalTitle: {
+    marginBottom: 15,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  readOnlyInput: {
+    backgroundColor: '#f0f0f0',
+    marginBottom: 10,
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+  },
+  saveButton: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  cancelButton: {
+    flex: 1,
+    marginRight: 10,
+  },
+  helperText: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 5,
+    marginLeft: 5,
+  },
+  fullScreen: {
+    flex: 1,
+    backgroundColor: 'white',
+    margin: 0,
+  },
+  map: {
+    flex: 1,
+  },
+  markerFixed: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    marginLeft: -24,
+    marginTop: -48,
+  },
+  topBar: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusText: {
+    backgroundColor: 'white',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginLeft: 10,
+    elevation: 4,
+  },
+  footer: {
+    position: 'absolute',
+    bottom: 40,
+    left: 20,
+    right: 20,
+    backgroundColor: 'white',
+    padding: 20,
+    borderRadius: 15,
+    elevation: 10,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  nameField: {
+    flex: 1,
+  },
+  cityStateRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 10,
+  },
+  confirmButton: {
+    backgroundColor: colors.success,
+  },
+  confirmButtonDisabled: {
+    backgroundColor: colors.disabled,
+  },
+  
+});
+</file>
+
+<file path=".gitignore">
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+app-example
+
+# generated native folders
+/ios
+/android
+
+/firebaseConfig.ts
+</file>
+
+<file path="app.json">
+{
+  "expo": {
+    "name": "MarketYardApp",
+    "slug": "MarketYardApp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "marketyardapp",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.MarketYardApp"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "package": "com.anonymous.MarketYardApp",
+      "googleServicesFile": "./android/app/google-services.json"
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff",
+          "dark": {
+            "backgroundColor": "#000000"
+          }
+        }
+      ],
+      "expo-localization"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "44795352-e9de-4210-a2d1-9f36096c85c6"
+      }
+    }
+  }
+}
+</file>
+
+<file path="package.json">
+{
+  "name": "marketyardapp",
+  "main": "expo-router/entry",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "expo start",
+    "reset-project": "node ./scripts/reset-project.js",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "lint": "expo lint"
+  },
+  "dependencies": {
+    "@expo/vector-icons": "^15.0.3",
+    "@react-native-async-storage/async-storage": "^2.2.0",
+    "@react-navigation/bottom-tabs": "^7.4.0",
+    "@react-navigation/elements": "^2.6.3",
+    "@react-navigation/native": "^7.1.8",
+    "expo": "~54.0.33",
+    "expo-constants": "~18.0.13",
+    "expo-firebase-recaptcha": "^2.3.1",
+    "expo-font": "~14.0.11",
+    "expo-haptics": "~15.0.8",
+    "expo-image": "~3.0.11",
+    "expo-linking": "~8.0.11",
+    "expo-localization": "~17.0.8",
+    "expo-location": "~19.0.8",
+    "expo-router": "~6.0.23",
+    "expo-splash-screen": "~31.0.13",
+    "expo-status-bar": "~3.0.9",
+    "expo-symbols": "~1.0.8",
+    "expo-system-ui": "~6.0.9",
+    "expo-web-browser": "~15.0.10",
+    "firebase": "^12.11.0",
+    "geolib": "^3.3.4",
+    "i18next": "^25.8.20",
+    "lucide-react-native": "^0.577.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-i18next": "^16.5.8",
+    "react-native": "0.81.5",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-keyboard-aware-scroll-view": "^0.9.5",
+    "react-native-localize": "^3.7.0",
+    "react-native-maps": "1.20.1",
+    "react-native-paper": "^5.15.0",
+    "react-native-reanimated": "~4.1.1",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-web": "~0.21.0",
+    "react-native-webview": "13.15.0",
+    "react-native-worklets": "0.5.1"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.0",
+    "@types/react-native": "^0.72.8",
+    "eslint": "^9.25.0",
+    "eslint-config-expo": "~10.0.0",
+    "typescript": "~5.9.2"
+  },
+  "private": true
+}
+</file>
+
+<file path="app/_layout.tsx">
+import { Stack } from 'expo-router';
+import { MD3LightTheme, Provider as PaperProvider } from 'react-native-paper';
+import { UserProvider } from '../context/UserContext'; // ✅ ADD
+
+export default function RootLayout() {
+  return (
+    <UserProvider>
+      <PaperProvider theme={MD3LightTheme}>
+        <Stack screenOptions={{ headerShown: false }} />
+      </PaperProvider>
+    </UserProvider>
+  );
+}
+</file>
+
+</files>

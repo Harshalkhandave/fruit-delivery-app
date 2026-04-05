@@ -26,4 +26,7 @@ export const colors = {
   
     // ===== OVERLAY =====
     overlay: 'rgba(0,0,0,0.5)',
+
+    errorText: 'red',        // already planned from earlier audit
+    disabledButton: '#ccc',
   };

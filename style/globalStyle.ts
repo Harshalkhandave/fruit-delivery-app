@@ -46,8 +46,15 @@ export const globalStyles = StyleSheet.create({
     color: colors.textSecondary,
   },
 
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center' as const,
+    padding: 20,
+  },
+
   mt10: { marginTop: 10 },
   mt20: { marginTop: 20 },
   mb10: { marginBottom: 10 },
   mb20: { marginBottom: 20 },
+  pb20: { paddingBottom: 20 },
 });

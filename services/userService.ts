@@ -10,6 +10,7 @@ export interface AddressData {
   nearby?: string;
   city: string;
   state: string;
+  coords?: { latitude: number; longitude: number };
 }
 
 // 2. Profile Data Interface ✅ FIXED
@@ -20,6 +21,8 @@ export interface UpdateProfileData {
   phoneNumber?: string; // ✅ ADDED (IMPORTANT FIX)
   isProfileComplete?: boolean;
   savedAddress?: AddressData;
+  savedAddresses?: AddressData[];
+  defaultAddressIndex?: number;
   updatedAt?: any;
 }
 

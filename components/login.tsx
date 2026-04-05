@@ -1,4 +1,3 @@
-import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 import * as Localization from 'expo-localization';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -29,6 +28,10 @@ const OTP_LENGTH = 6;
 const OTP_TIMER = 60;
 const SKIP_OTP = __DEV__;
 // const SKIP_OTP = false;
+
+const FirebaseRecaptchaVerifierModal = !SKIP_OTP
+  ? require('expo-firebase-recaptcha').FirebaseRecaptchaVerifierModal
+  : null;
 interface LoginProps {
   onLogin: (user: any) => void;
 }
@@ -116,7 +119,7 @@ export default function Login({ onLogin }: LoginProps) {
       if (SKIP_OTP) {
         // fake login user
         onLogin({
-          uid: '6rHUoW1eSBYKJOJ05gRpoDBEtzz1',
+          uid: '7yewgvAhTCdFc2UH2EZxYLIEHpy1',
           phoneNumber: '+919421266124',
         });
         return;
@@ -181,21 +184,18 @@ export default function Login({ onLogin }: LoginProps) {
   return (
     <SafeAreaView style={{ flex: 1 }}>
       <KeyboardAwareScrollView
-        contentContainerStyle={{
-          flexGrow: 1,
-          justifyContent: 'center',
-          padding: 20,
-          paddingTop: 60,
-        }}
+        contentContainerStyle={[globalStyles.scrollContent, { paddingTop: 60 }]}
         enableOnAndroid
         extraScrollHeight={60}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <FirebaseRecaptchaVerifierModal
-          ref={recaptchaVerifier}
-          firebaseConfig={auth.app.options}
-        />
+        {FirebaseRecaptchaVerifierModal ? (
+          <FirebaseRecaptchaVerifierModal
+            ref={recaptchaVerifier}
+            firebaseConfig={auth.app.options}
+          />
+        ) : null}
 
         {/* 🌐 Language */}
         <View style={globalStyles.languageContainer}>
@@ -219,7 +219,7 @@ export default function Login({ onLogin }: LoginProps) {
             {t('title')}
           </Text>
 
-          <Text style={{ textAlign: 'center', marginBottom: 16 }}>
+          <Text style={[globalStyles.centerText, globalStyles.mb20]}>
             {t('subtitle')}
           </Text>
 
@@ -229,7 +229,7 @@ export default function Login({ onLogin }: LoginProps) {
             value={phone}
             onChangeText={handlePhoneChange}
             left={<TextInput.Affix text="+91 " />}
-            mode="outlined"
+            mode="flat"
             keyboardType="phone-pad"
             maxLength={PHONE_LENGTH}
             disabled={step === 2 || loading}
@@ -244,7 +244,7 @@ export default function Login({ onLogin }: LoginProps) {
               label={t('otp')}
               value={otp}
               onChangeText={handleOtpChange}
-              mode="outlined"
+              mode="flat"
               keyboardType="number-pad"
               maxLength={OTP_LENGTH}
               secureTextEntry={!showOtp}
@@ -263,7 +263,7 @@ export default function Login({ onLogin }: LoginProps) {
           )}
 
           {/* BUTTONS */}
-          <View style={{ marginTop: 16 }}>
+          <View style={globalStyles.mt20}>
             <Button
               mode="contained"
               onPress={step === 1 ? handleSendOTP : () => handleVerifyOTP()}
@@ -279,7 +279,7 @@ export default function Login({ onLogin }: LoginProps) {
                   onPress={handleSendOTP}
                   disabled={timer > 0}
                   mode="text"
-                  style={{ marginBottom: 8 }}
+                  style={globalStyles.mb10}
                 >
                   {timer > 0
                     ? t('resend_timer', { time: timer })

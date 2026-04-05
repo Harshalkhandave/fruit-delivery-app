@@ -1,4 +1,5 @@
 import { StyleSheet } from 'react-native';
+import { colors } from './colors';
 
 export const addressStyles = StyleSheet.create({
   modalContainer: {
@@ -77,4 +78,23 @@ export const addressStyles = StyleSheet.create({
     borderRadius: 15,
     elevation: 10,
   },
+  nameRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  nameField: {
+    flex: 1,
+  },
+  cityStateRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 10,
+  },
+  confirmButton: {
+    backgroundColor: colors.success,
+  },
+  confirmButtonDisabled: {
+    backgroundColor: colors.disabled,
+  },
+  
 });
